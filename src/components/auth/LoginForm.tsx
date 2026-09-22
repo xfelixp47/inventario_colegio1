@@ -15,10 +15,6 @@ function LoginForm({ error, onSubmit }: LoginFormProps) {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!carnet.trim() || !password.trim()) {
-      return;
-    }
-
     onSubmit({
       carnet,
       password,
@@ -26,39 +22,48 @@ function LoginForm({ error, onSubmit }: LoginFormProps) {
   };
 
   return (
-    <form className="login-form" onSubmit={handleSubmit}>
-      <div className="form-group">
-        <label htmlFor="carnet">Carnet</label>
+    <div className="login-card">
+      <div className="login-logo">DB</div>
 
-        <input
-          id="carnet"
-          type="text"
-          placeholder="Ingresa tu carnet"
-          value={carnet}
-          onChange={(e) => setCarnet(e.target.value)}
-          autoComplete="username"
-        />
-      </div>
+      <h1>Bienvenido</h1>
+      <p className="login-subtitle">Sistema de Inventario Don Bosco</p>
 
-      <div className="form-group">
-        <label htmlFor="password">Contraseña</label>
+      <form className="login-form" onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="carnet">Carnet</label>
 
-        <input
-          id="password"
-          type="password"
-          placeholder="Ingresa tu contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-      </div>
+          <input
+            id="carnet"
+            type="text"
+            placeholder="Ingresa tu carnet"
+            value={carnet}
+            onChange={(e) => setCarnet(e.target.value)}
+            autoComplete="username"
+            required
+          />
+        </div>
 
-      {error && <div className="login-error">{error}</div>}
+        <div className="form-group">
+          <label htmlFor="password">Contraseña</label>
 
-      <button type="submit" className="login-button">
-        Iniciar sesión
-      </button>
-    </form>
+          <input
+            id="password"
+            type="password"
+            placeholder="Ingresa tu contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </div>
+
+        {error && <div className="login-error">{error}</div>}
+
+        <button type="submit" className="login-button">
+          Iniciar sesión
+        </button>
+      </form>
+    </div>
   );
 }
 

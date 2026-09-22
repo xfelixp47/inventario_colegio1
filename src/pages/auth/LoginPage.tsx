@@ -6,6 +6,8 @@ import { authRepository } from "../../repositories/authRepository";
 
 import type { LoginCredentials } from "../../types/auth";
 
+import "./LoginPage.css";
+
 function LoginPage() {
   const navigate = useNavigate();
 
