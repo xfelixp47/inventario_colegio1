@@ -23,6 +23,7 @@ function LoginPage() {
       return;
     }
 
+    // TODOS entran al mismo panel principal
     navigate("/", { replace: true });
   };
 

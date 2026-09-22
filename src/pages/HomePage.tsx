@@ -19,9 +19,11 @@ import {
   School,
   Menu,
   X,
+  Search,
 } from "lucide-react";
 
 import { authRepository } from "../repositories/authRepository";
+
 import "./HomePage.css";
 
 function HomePage() {
@@ -29,21 +31,19 @@ function HomePage() {
 
   const user = authRepository.getCurrentUser();
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showNotifications, setShowNotifications] =
+    useState(false);
 
-  /* ===============================
-     CERRAR SESIÓN
-  =============================== */
+  const [sidebarOpen, setSidebarOpen] =
+    useState(true);
 
   const handleLogout = () => {
     authRepository.logout();
-    navigate("/login", { replace: true });
-  };
 
-  /* ===============================
-     DATOS TEMPORALES
-  =============================== */
+    navigate("/login", {
+      replace: true,
+    });
+  };
 
   const recentObjects = [
     {
@@ -99,17 +99,13 @@ function HomePage() {
     },
     {
       id: 3,
-      person: "Luis Sánchez",
-      course: "4° A",
-      item: "Micrófono inalámbrico",
-      status: "Devuelto",
-      initials: "LS",
+      person: "Juan Pérez",
+      course: "6° A",
+      item: "Microscopio escolar",
+      status: "Activo",
+      initials: "JP",
     },
   ];
-
-  /* ===============================
-     SI NO HAY SESIÓN
-  =============================== */
 
   if (!user) {
     return (
@@ -126,13 +122,15 @@ function HomePage() {
           <h1>Sistema de Inventario</h1>
 
           <p>
-            Administra, organiza y controla los objetos y recursos
-            del colegio desde un solo lugar.
+            Administra, organiza y controla los objetos
+            y recursos del colegio desde un solo lugar.
           </p>
 
           <button
             className="login-button"
-            onClick={() => navigate("/login")}
+            onClick={() =>
+              navigate("/login")
+            }
           >
             Iniciar sesión
             <ChevronRight size={19} />
@@ -142,18 +140,55 @@ function HomePage() {
     );
   }
 
+  const isAdmin =
+    user.role === "ADMIN";
+
+  const isProfesor =
+    user.role === "PROFESOR";
+
+  const isEstudiante =
+    user.role === "ESTUDIANTE";
+
+  const roleLabel =
+    user.role === "ADMIN"
+      ? "Administrador"
+      : user.role === "PROFESOR"
+      ? "Profesor"
+      : "Estudiante";
+
+  const visibleLoans = isEstudiante
+    ? loans.filter(
+        (loan) =>
+          loan.person === user.name
+      )
+    : loans;
+
+  const heroText = isAdmin
+    ? "Administra y controla todos los objetos, materiales y recursos del Colegio Don Bosco de una manera rápida, ordenada y segura."
+    : isProfesor
+    ? "Consulta los objetos disponibles y solicita los materiales que necesitas para tus clases."
+    : "Consulta los materiales disponibles del colegio y revisa tus préstamos actuales.";
+
   return (
-    <div className={`dashboard ${sidebarOpen ? "" : "sidebar-hidden"}`}>
-      {/* =====================================
-          SIDEBAR
-      ===================================== */}
-
-      <aside className={`sidebar ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
-        {/* LOGO */}
-
+    <div
+      className={`dashboard ${
+        sidebarOpen
+          ? ""
+          : "sidebar-hidden"
+      }`}
+    >
+      <aside
+        className={`sidebar ${
+          sidebarOpen
+            ? ""
+            : "sidebar-collapsed"
+        }`}
+      >
         <button
           className="sidebar-brand"
-          onClick={() => navigate("/")}
+          onClick={() =>
+            navigate("/")
+          }
           style={{
             border: "none",
             background: "transparent",
@@ -177,84 +212,89 @@ function HomePage() {
           MENÚ PRINCIPAL
         </div>
 
-        {/* NAVEGACIÓN */}
-
         <nav className="sidebar-nav">
-          {/* INICIO */}
-
           <button
             className="nav-item active"
-            onClick={() => navigate("/")}
+            onClick={() =>
+              navigate("/")
+            }
           >
             <LayoutDashboard size={20} />
             <span>Inicio</span>
           </button>
 
-          {/* INVENTARIO */}
-
           <button
             className="nav-item"
-            onClick={() => navigate("/inventario")}
+            onClick={() =>
+              navigate("/inventario")
+            }
           >
             <Package size={20} />
             <span>Inventario</span>
           </button>
 
-          {/* PRÉSTAMOS */}
-
           <button
             className="nav-item"
-            onClick={() => navigate("/prestamos")}
+            onClick={() =>
+              navigate("/prestamos")
+            }
           >
             <Handshake size={20} />
-            <span>Préstamos</span>
+
+            <span>
+              {isEstudiante
+                ? "Mis préstamos"
+                : "Préstamos"}
+            </span>
           </button>
 
-          {/* CATEGORÍAS */}
+          {isAdmin && (
+            <>
+              <button
+                className="nav-item"
+                onClick={() =>
+                  navigate("/categorias")
+                }
+              >
+                <FolderOpen size={20} />
+                <span>Categorías</span>
+              </button>
 
-          <button
-            className="nav-item"
-            onClick={() => navigate("/categorias")}
-          >
-            <FolderOpen size={20} />
-            <span>Categorías</span>
-          </button>
+              <button
+                className="nav-item"
+                onClick={() =>
+                  navigate("/reportes")
+                }
+              >
+                <BarChart3 size={20} />
+                <span>Reportes</span>
+              </button>
 
-          {/* REPORTES */}
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/reportes")}
-          >
-            <BarChart3 size={20} />
-            <span>Reportes</span>
-          </button>
-
-          {/* USUARIOS */}
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/usuarios")}
-          >
-            <Users size={20} />
-            <span>Usuarios</span>
-          </button>
+              <button
+                className="nav-item"
+                onClick={() =>
+                  navigate("/usuarios")
+                }
+              >
+                <Users size={20} />
+                <span>Usuarios</span>
+              </button>
+            </>
+          )}
         </nav>
 
-        {/* PARTE INFERIOR */}
-
         <div className="sidebar-bottom">
-          {/* CONFIGURACIÓN */}
-
-          <button
-            className="nav-item"
-            onClick={() => navigate("/configuracion")}
-          >
-            <Settings size={20} />
-            <span>Configuración</span>
-          </button>
-
-          {/* CERRAR SESIÓN */}
+          {isAdmin && (
+            <button
+              className="nav-item"
+              onClick={() =>
+                navigate("/configuracion")
+              }
+            >
+              <Settings size={20} />
+              <span>Configuración</span>
+            </button>
+          )}
 
           <button
             className="nav-item logout"
@@ -266,33 +306,30 @@ function HomePage() {
         </div>
 
         <div className="sidebar-decoration">
-          <School size={100} strokeWidth={1} />
+          <School
+            size={100}
+            strokeWidth={1}
+          />
         </div>
       </aside>
 
-      {/* =====================================
-          CONTENIDO PRINCIPAL
-      ===================================== */}
-
       <main className="main-content">
-        {/* =====================================
-            TOPBAR
-        ===================================== */}
-
         <header className="topbar">
           <div className="topbar-left">
-            {/* ABRIR / CERRAR MENÚ */}
-
             <button
               className="menu-button"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              title={sidebarOpen ? "Ocultar menú" : "Mostrar menú"}
+              onClick={() =>
+                setSidebarOpen(
+                  !sidebarOpen
+                )
+              }
+              title={
+                sidebarOpen
+                  ? "Ocultar menú"
+                  : "Mostrar menú"
+              }
             >
-              {sidebarOpen ? (
-                <Menu size={22} />
-              ) : (
-                <Menu size={22} />
-              )}
+              <Menu size={22} />
             </button>
 
             <div>
@@ -305,13 +342,13 @@ function HomePage() {
           </div>
 
           <div className="topbar-right">
-            {/* NOTIFICACIONES */}
-
             <div className="notifications-wrapper">
               <button
                 className="notification-button"
                 onClick={() =>
-                  setShowNotifications(!showNotifications)
+                  setShowNotifications(
+                    !showNotifications
+                  )
                 }
               >
                 <Bell size={21} />
@@ -321,19 +358,22 @@ function HomePage() {
                 </span>
               </button>
 
-              {/* PANEL NOTIFICACIONES */}
-
               {showNotifications && (
                 <div className="notifications-panel">
                   <div className="notifications-header">
                     <div>
-                      <strong>Notificaciones</strong>
+                      <strong>
+                        Notificaciones
+                      </strong>
+
                       <span>3 nuevas</span>
                     </div>
 
                     <button
                       onClick={() =>
-                        setShowNotifications(false)
+                        setShowNotifications(
+                          false
+                        )
                       }
                     >
                       <X size={17} />
@@ -346,24 +386,32 @@ function HomePage() {
                     </div>
 
                     <div>
-                      <strong>Préstamo pendiente</strong>
+                      <strong>
+                        Préstamo pendiente
+                      </strong>
 
                       <p>
-                        Laptop Lenovo debe ser devuelta hoy.
+                        Revisa los préstamos
+                        pendientes de devolución.
                       </p>
                     </div>
                   </div>
 
                   <div className="notification-item">
                     <div className="notification-icon success">
-                      <CheckCircle2 size={17} />
+                      <CheckCircle2
+                        size={17}
+                      />
                     </div>
 
                     <div>
-                      <strong>Objeto devuelto</strong>
+                      <strong>
+                        Objeto disponible
+                      </strong>
 
                       <p>
-                        Se devolvió un micrófono inalámbrico.
+                        Hay materiales disponibles
+                        en el inventario.
                       </p>
                     </div>
                   </div>
@@ -374,10 +422,13 @@ function HomePage() {
                     </div>
 
                     <div>
-                      <strong>Nuevo objeto</strong>
+                      <strong>
+                        Inventario
+                      </strong>
 
                       <p>
-                        Se agregó un nuevo objeto al inventario.
+                        Consulta los recursos del
+                        colegio.
                       </p>
                     </div>
                   </div>
@@ -385,8 +436,13 @@ function HomePage() {
                   <button
                     className="notification-footer"
                     onClick={() => {
-                      setShowNotifications(false);
-                      navigate("/prestamos");
+                      setShowNotifications(
+                        false
+                      );
+
+                      navigate(
+                        "/prestamos"
+                      );
                     }}
                   >
                     Revisar préstamos
@@ -395,19 +451,25 @@ function HomePage() {
               )}
             </div>
 
-            {/* USUARIO */}
-
             <button
               className="user-profile"
-              onClick={() => navigate("/usuarios")}
+              onClick={() => {
+                if (isAdmin) {
+                  navigate("/usuarios");
+                }
+              }}
               style={{
                 border: "none",
                 background: "transparent",
-                cursor: "pointer",
+                cursor: isAdmin
+                  ? "pointer"
+                  : "default",
               }}
             >
               <div className="user-avatar">
-                {user.name?.charAt(0).toUpperCase()}
+                {user.name
+                  .charAt(0)
+                  .toUpperCase()}
               </div>
 
               <div className="user-info">
@@ -416,16 +478,12 @@ function HomePage() {
                 </strong>
 
                 <span>
-                  {user.role}
+                  {roleLabel}
                 </span>
               </div>
             </button>
           </div>
         </header>
-
-        {/* =====================================
-            HERO
-        ===================================== */}
 
         <section className="hero">
           <div className="hero-content">
@@ -436,41 +494,100 @@ function HomePage() {
 
             <h1>
               Gestión inteligente para
-              <span> nuestro colegio</span>
+              <span>
+                {" "}
+                nuestro colegio
+              </span>
             </h1>
 
             <p>
-              Administra y controla todos los objetos,
-              materiales y recursos del Colegio Don Bosco
-              de una manera rápida, ordenada y segura.
+              {heroText}
             </p>
 
-            {/* BOTONES HERO */}
-
             <div className="hero-actions">
-              {/* REGISTRAR OBJETO */}
+              {isAdmin && (
+                <>
+                  <button
+                    className="primary-action"
+                    onClick={() =>
+                      navigate(
+                        "/inventario/nuevo"
+                      )
+                    }
+                  >
+                    <Plus size={19} />
+                    Registrar objeto
+                  </button>
 
-              <button
-                className="primary-action"
-                onClick={() =>
-                  navigate("/inventario/nuevo")
-                }
-              >
-                <Plus size={19} />
-                Registrar objeto
-              </button>
+                  <button
+                    className="secondary-action"
+                    onClick={() =>
+                      navigate(
+                        "/prestamos/nuevo"
+                      )
+                    }
+                  >
+                    <UserPlus size={19} />
+                    Nuevo préstamo
+                  </button>
+                </>
+              )}
 
-              {/* NUEVO PRÉSTAMO */}
+              {isProfesor && (
+                <>
+                  <button
+                    className="primary-action"
+                    onClick={() =>
+                      navigate(
+                        "/prestamos/nuevo"
+                      )
+                    }
+                  >
+                    <UserPlus size={19} />
+                    Solicitar préstamo
+                  </button>
 
-              <button
-                className="secondary-action"
-                onClick={() =>
-                  navigate("/prestamos/nuevo")
-                }
-              >
-                <UserPlus size={19} />
-                Nuevo préstamo
-              </button>
+                  <button
+                    className="secondary-action"
+                    onClick={() =>
+                      navigate(
+                        "/inventario"
+                      )
+                    }
+                  >
+                    <Search size={19} />
+                    Consultar objetos
+                  </button>
+                </>
+              )}
+
+              {isEstudiante && (
+                <>
+                  <button
+                    className="primary-action"
+                    onClick={() =>
+                      navigate(
+                        "/inventario"
+                      )
+                    }
+                  >
+                    <Search size={19} />
+                    Consultar objetos
+                  </button>
+
+                  <button
+                    className="secondary-action"
+                    onClick={() =>
+                      navigate(
+                        "/prestamos"
+                      )
+                    }
+                  >
+                    <Handshake size={19} />
+                    Mis préstamos
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -487,13 +604,7 @@ function HomePage() {
           </div>
         </section>
 
-        {/* =====================================
-            ESTADÍSTICAS
-        ===================================== */}
-
         <section className="stats-grid">
-          {/* TOTAL OBJETOS */}
-
           <button
             className="stat-card"
             onClick={() =>
@@ -513,17 +624,13 @@ function HomePage() {
                 OBJETOS REGISTRADOS
               </span>
 
-              <strong>
-                1,248
-              </strong>
+              <strong>1,248</strong>
 
               <small className="positive">
-                ↑ 24 este mes
+                Recursos del colegio
               </small>
             </div>
           </button>
-
-          {/* DISPONIBLES */}
 
           <button
             className="stat-card"
@@ -536,25 +643,21 @@ function HomePage() {
             }}
           >
             <div className="stat-icon green">
-              <CheckCircle2 size={25} />
+              <CheckCircle2
+                size={25}
+              />
             </div>
 
             <div className="stat-content">
-              <span>
-                DISPONIBLES
-              </span>
+              <span>DISPONIBLES</span>
 
-              <strong>
-                932
-              </strong>
+              <strong>932</strong>
 
               <small>
                 74.7% del total
               </small>
             </div>
           </button>
-
-          {/* PRESTADOS */}
 
           <button
             className="stat-card"
@@ -572,60 +675,56 @@ function HomePage() {
 
             <div className="stat-content">
               <span>
-                PRESTADOS
+                {isEstudiante
+                  ? "MIS PRÉSTAMOS"
+                  : "PRESTADOS"}
               </span>
 
               <strong>
-                216
+                {isEstudiante
+                  ? visibleLoans.length
+                  : 216}
               </strong>
 
               <small>
-                17.3% del total
+                {isEstudiante
+                  ? "Préstamos registrados"
+                  : "17.3% del total"}
               </small>
             </div>
           </button>
 
-          {/* CATEGORÍAS */}
+          {isAdmin && (
+            <button
+              className="stat-card"
+              onClick={() =>
+                navigate("/categorias")
+              }
+              style={{
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <div className="stat-icon purple">
+                <FolderOpen size={25} />
+              </div>
 
-          <button
-            className="stat-card"
-            onClick={() =>
-              navigate("/categorias")
-            }
-            style={{
-              textAlign: "left",
-              cursor: "pointer",
-            }}
-          >
-            <div className="stat-icon purple">
-              <FolderOpen size={25} />
-            </div>
+              <div className="stat-content">
+                <span>
+                  CATEGORÍAS
+                </span>
 
-            <div className="stat-content">
-              <span>
-                CATEGORÍAS
-              </span>
+                <strong>28</strong>
 
-              <strong>
-                28
-              </strong>
-
-              <small>
-                Categorías activas
-              </small>
-            </div>
-          </button>
+                <small>
+                  Categorías activas
+                </small>
+              </div>
+            </button>
+          )}
         </section>
 
-        {/* =====================================
-            OBJETOS Y PRÉSTAMOS
-        ===================================== */}
-
         <section className="dashboard-grid">
-          {/* =====================================
-              OBJETOS RECIENTES
-          ===================================== */}
-
           <div className="dashboard-card">
             <div className="card-header">
               <div className="card-title">
@@ -639,7 +738,8 @@ function HomePage() {
                   </h3>
 
                   <p>
-                    Últimos objetos registrados
+                    Materiales registrados
+                    recientemente
                   </p>
                 </div>
               </div>
@@ -647,71 +747,76 @@ function HomePage() {
               <button
                 className="view-all"
                 onClick={() =>
-                  navigate("/inventario")
+                  navigate(
+                    "/inventario"
+                  )
                 }
               >
                 Ver todo
-                <ChevronRight size={17} />
+                <ChevronRight
+                  size={17}
+                />
               </button>
             </div>
 
-            {/* LISTA */}
-
             <div className="objects-list">
-              {recentObjects.map((object) => (
-                <div
-                  className="object-row"
-                  key={object.id}
-                >
-                  <div className="object-main">
-                    <div className="object-image">
-                      {object.icon}
-                    </div>
-
-                    <div>
-                      <strong>
-                        {object.name}
-                      </strong>
-
-                      <span>
-                        {object.category}
-                      </span>
-                    </div>
-                  </div>
-
+              {recentObjects.map(
+                (object) => (
                   <div
-                    className={`status ${
-                      object.status === "Disponible"
-                        ? "available"
-                        : "borrowed"
-                    }`}
+                    className="object-row"
+                    key={object.id}
                   >
-                    {object.status}
+                    <div className="object-main">
+                      <div className="object-image">
+                        {object.icon}
+                      </div>
+
+                      <div>
+                        <strong>
+                          {object.name}
+                        </strong>
+
+                        <span>
+                          {
+                            object.category
+                          }
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`status ${
+                        object.status ===
+                        "Disponible"
+                          ? "available"
+                          : "borrowed"
+                      }`}
+                    >
+                      {object.status}
+                    </div>
+
+                    <span className="object-date">
+                      {object.date}
+                    </span>
                   </div>
-
-                  <span className="object-date">
-                    {object.date}
-                  </span>
-                </div>
-              ))}
+                )
+              )}
             </div>
-
-            {/* VER TODOS */}
 
             <button
               className="card-footer-button"
               onClick={() =>
-                navigate("/inventario")
+                navigate(
+                  "/inventario"
+                )
               }
             >
               Ver todos los objetos
-              <ChevronRight size={17} />
+              <ChevronRight
+                size={17}
+              />
             </button>
           </div>
-
-          {/* =====================================
-              PRÉSTAMOS RECIENTES
-          ===================================== */}
 
           <div className="dashboard-card">
             <div className="card-header">
@@ -722,11 +827,15 @@ function HomePage() {
 
                 <div>
                   <h3>
-                    Préstamos recientes
+                    {isEstudiante
+                      ? "Mis préstamos"
+                      : "Préstamos recientes"}
                   </h3>
 
                   <p>
-                    Movimientos realizados recientemente
+                    {isEstudiante
+                      ? "Tus préstamos registrados"
+                      : "Movimientos realizados recientemente"}
                   </p>
                 </div>
               </div>
@@ -734,80 +843,100 @@ function HomePage() {
               <button
                 className="view-all"
                 onClick={() =>
-                  navigate("/prestamos")
+                  navigate(
+                    "/prestamos"
+                  )
                 }
               >
                 Ver todo
-                <ChevronRight size={17} />
+                <ChevronRight
+                  size={17}
+                />
               </button>
             </div>
 
-            {/* LISTA */}
-
             <div className="loans-list">
-              {loans.map((loan, index) => (
+              {visibleLoans.map(
+                (loan, index) => (
+                  <div
+                    className="loan-row"
+                    key={loan.id}
+                  >
+                    <div
+                      className={`loan-avatar avatar-${
+                        (index % 3) + 1
+                      }`}
+                    >
+                      {loan.initials}
+                    </div>
+
+                    <div className="loan-person">
+                      <strong>
+                        {loan.person}
+                      </strong>
+
+                      <span>
+                        {loan.course}
+                      </span>
+                    </div>
+
+                    <div className="loan-object">
+                      <span>
+                        Objeto
+                      </span>
+
+                      <strong>
+                        {loan.item}
+                      </strong>
+                    </div>
+
+                    <div
+                      className={`status ${
+                        loan.status ===
+                        "Activo"
+                          ? "borrowed"
+                          : "available"
+                      }`}
+                    >
+                      {loan.status}
+                    </div>
+                  </div>
+                )
+              )}
+
+              {visibleLoans.length ===
+                0 && (
                 <div
-                  className="loan-row"
-                  key={loan.id}
+                  style={{
+                    padding: "25px",
+                    textAlign: "center",
+                    color: "#7e8b9e",
+                  }}
                 >
-                  <div
-                    className={`loan-avatar avatar-${
-                      index + 1
-                    }`}
-                  >
-                    {loan.initials}
-                  </div>
-
-                  <div className="loan-person">
-                    <strong>
-                      {loan.person}
-                    </strong>
-
-                    <span>
-                      {loan.course}
-                    </span>
-                  </div>
-
-                  <div className="loan-object">
-                    <span>
-                      Objeto
-                    </span>
-
-                    <strong>
-                      {loan.item}
-                    </strong>
-                  </div>
-
-                  <div
-                    className={`status ${
-                      loan.status === "Activo"
-                        ? "borrowed"
-                        : "available"
-                    }`}
-                  >
-                    {loan.status}
-                  </div>
+                  No tienes préstamos
+                  registrados.
                 </div>
-              ))}
+              )}
             </div>
-
-            {/* VER TODOS */}
 
             <button
               className="card-footer-button"
               onClick={() =>
-                navigate("/prestamos")
+                navigate(
+                  "/prestamos"
+                )
               }
             >
-              Ver todos los préstamos
-              <ChevronRight size={17} />
+              {isEstudiante
+                ? "Ver mis préstamos"
+                : "Ver todos los préstamos"}
+
+              <ChevronRight
+                size={17}
+              />
             </button>
           </div>
         </section>
-
-        {/* =====================================
-            BANNER INFERIOR
-        ===================================== */}
 
         <section className="bottom-banner">
           <div className="banner-icon">
@@ -816,12 +945,15 @@ function HomePage() {
 
           <div>
             <strong>
-              Ayudemos a cuidar los recursos del colegio
+              Ayudemos a cuidar los
+              recursos del colegio
             </strong>
 
             <p>
-              Mantener el inventario actualizado permite
-              tener un mejor control de todos los materiales.
+              Mantener el inventario
+              actualizado permite tener un
+              mejor control de todos los
+              materiales.
             </p>
           </div>
 

@@ -1,0 +1,176 @@
+.role-page {
+  min-height: 100vh;
+  padding: 50px;
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+.admin-page {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.3),
+      transparent 35%
+    ),
+    #071426;
+}
+
+.teacher-page {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(16, 185, 129, 0.3),
+      transparent 35%
+    ),
+    #06251d;
+}
+
+.student-page {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(168, 85, 247, 0.3),
+      transparent 35%
+    ),
+    #1b102e;
+}
+
+.role-header {
+  max-width: 1200px;
+  margin: auto;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  color: white;
+}
+
+.role-header h1 {
+  font-size: 40px;
+  margin: 12px 0 8px;
+}
+
+.role-header p {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.role-header button {
+  padding: 12px 20px;
+
+  border: none;
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+
+  cursor: pointer;
+
+  font-weight: 700;
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.role-header button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.role-badge {
+  display: inline-block;
+
+  padding: 7px 14px;
+
+  border-radius: 30px;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 1.5px;
+}
+
+.admin-badge {
+  background: #2563eb;
+  color: white;
+}
+
+.teacher-badge {
+  background: #10b981;
+  color: white;
+}
+
+.student-badge {
+  background: #9333ea;
+  color: white;
+}
+
+.role-grid {
+  max-width: 1200px;
+
+  margin: 45px auto 0;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(auto-fit, minmax(250px, 1fr));
+
+  gap: 22px;
+}
+
+.role-card {
+  padding: 28px;
+
+  border-radius: 20px;
+
+  background: rgba(255, 255, 255, 0.08);
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+
+  color: white;
+
+  backdrop-filter: blur(15px);
+
+  cursor: pointer;
+
+  transition: 0.25s;
+}
+
+.role-card:hover {
+  transform: translateY(-7px);
+
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.role-card span {
+  font-size: 35px;
+}
+
+.role-card h2 {
+  margin: 18px 0 8px;
+}
+
+.role-card p {
+  color: #cbd5e1;
+
+  line-height: 1.6;
+
+  font-size: 14px;
+}
+
+@media (max-width: 650px) {
+  .role-page {
+    padding: 30px 20px;
+  }
+
+  .role-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+
+    gap: 25px;
+  }
+
+  .role-header h1 {
+    font-size: 30px;
+  }
+}

@@ -1,4 +1,8 @@
-import { useMemo, useState } from "react";
+import {
+  useMemo,
+  useState,
+} from "react";
+
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -19,69 +23,119 @@ import {
 } from "lucide-react";
 
 import initialUsers from "../data/users.json";
+
 import "./UsersPage.css";
 
 type UserItem = {
   id: number | string;
   name: string;
   carnet: string;
-  role: string;
+  role:
+    | "ADMIN"
+    | "PROFESOR"
+    | "ESTUDIANTE";
   password?: string;
 };
 
 function UsersPage() {
   const navigate = useNavigate();
 
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("Todos");
+  const [search, setSearch] =
+    useState("");
 
-  const [users, setUsers] = useState<UserItem[]>(
-    initialUsers as UserItem[]
-  );
+  const [
+    roleFilter,
+    setRoleFilter,
+  ] = useState("Todos");
 
-  const [showModal, setShowModal] = useState(false);
+  const [users, setUsers] =
+    useState<UserItem[]>(
+      initialUsers as UserItem[]
+    );
 
-  const [newName, setNewName] = useState("");
-  const [newCarnet, setNewCarnet] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState("usuario");
+  const [
+    showModal,
+    setShowModal,
+  ] = useState(false);
 
-  /* =========================
-     FILTROS
-  ========================= */
+  const [newName, setNewName] =
+    useState("");
 
-  const filteredUsers = useMemo(() => {
-    const text = search.toLowerCase();
+  const [
+    newCarnet,
+    setNewCarnet,
+  ] = useState("");
 
-    return users.filter((user) => {
-      const matchesSearch =
-        user.name.toLowerCase().includes(text) ||
-        user.carnet.toLowerCase().includes(text) ||
-        user.role.toLowerCase().includes(text);
+  const [
+    newPassword,
+    setNewPassword,
+  ] = useState("");
 
-      const matchesRole =
-        roleFilter === "Todos" ||
-        user.role.toLowerCase() === roleFilter.toLowerCase();
+  const [
+    newRole,
+    setNewRole,
+  ] =
+    useState<
+      | "ADMIN"
+      | "PROFESOR"
+      | "ESTUDIANTE"
+    >("ESTUDIANTE");
 
-      return matchesSearch && matchesRole;
-    });
-  }, [users, search, roleFilter]);
+  const filteredUsers =
+    useMemo(() => {
+      const text =
+        search.toLowerCase();
 
-  /* =========================
-     ESTADÍSTICAS
-  ========================= */
+      return users.filter(
+        (user) => {
+          const matchesSearch =
+            user.name
+              .toLowerCase()
+              .includes(text) ||
+            user.carnet
+              .toLowerCase()
+              .includes(text) ||
+            user.role
+              .toLowerCase()
+              .includes(text);
 
-  const adminCount = users.filter(
-    (user) => user.role.toLowerCase() === "admin"
-  ).length;
+          const matchesRole =
+            roleFilter ===
+              "Todos" ||
+            user.role ===
+              roleFilter;
 
-  const normalUsersCount = users.filter(
-    (user) => user.role.toLowerCase() !== "admin"
-  ).length;
+          return (
+            matchesSearch &&
+            matchesRole
+          );
+        }
+      );
+    }, [
+      users,
+      search,
+      roleFilter,
+    ]);
 
-  /* =========================
-     CREAR USUARIO
-  ========================= */
+  const adminCount =
+    users.filter(
+      (user) =>
+        user.role === "ADMIN"
+    ).length;
+
+  const teacherCount =
+    users.filter(
+      (user) =>
+        user.role ===
+        "PROFESOR"
+    ).length;
+
+  const studentCount =
+    users.filter(
+      (user) =>
+        user.role ===
+        "ESTUDIANTE"
+    ).length;
 
   const handleCreateUser = (
     event: React.FormEvent<HTMLFormElement>
@@ -93,91 +147,117 @@ function UsersPage() {
       !newCarnet.trim() ||
       !newPassword.trim()
     ) {
-      alert("Completa todos los campos.");
+      alert(
+        "Completa todos los campos."
+      );
+
       return;
     }
 
-    const carnetExists = users.some(
-      (user) => user.carnet === newCarnet.trim()
-    );
+    const carnetExists =
+      users.some(
+        (user) =>
+          user.carnet ===
+          newCarnet.trim()
+      );
 
     if (carnetExists) {
-      alert("Ya existe un usuario con ese carnet.");
+      alert(
+        "Ya existe un usuario con ese carnet."
+      );
+
       return;
     }
 
-    const newUser: UserItem = {
-      id: Date.now(),
-      name: newName.trim(),
-      carnet: newCarnet.trim(),
-      password: newPassword,
-      role: newRole,
-    };
+    const newUser: UserItem =
+      {
+        id: Date.now(),
+        name: newName.trim(),
+        carnet:
+          newCarnet.trim(),
+        password:
+          newPassword,
+        role: newRole,
+      };
 
-    setUsers((currentUsers) => [
-      ...currentUsers,
-      newUser,
-    ]);
+    setUsers(
+      (currentUsers) => [
+        ...currentUsers,
+        newUser,
+      ]
+    );
 
     setNewName("");
     setNewCarnet("");
     setNewPassword("");
-    setNewRole("usuario");
+    setNewRole(
+      "ESTUDIANTE"
+    );
 
     setShowModal(false);
   };
 
-  /* =========================
-     EDITAR
-  ========================= */
+  const editUser = (
+    user: UserItem
+  ) => {
+    const newUserName =
+      window.prompt(
+        "Nuevo nombre del usuario:",
+        user.name
+      );
 
-  const editUser = (user: UserItem) => {
-    const newUserName = window.prompt(
-      "Nuevo nombre del usuario:",
-      user.name
-    );
+    if (
+      !newUserName?.trim()
+    )
+      return;
 
-    if (!newUserName?.trim()) return;
-
-    setUsers((currentUsers) =>
-      currentUsers.map((currentUser) =>
-        currentUser.id === user.id
-          ? {
-              ...currentUser,
-              name: newUserName.trim(),
-            }
-          : currentUser
-      )
+    setUsers(
+      (currentUsers) =>
+        currentUsers.map(
+          (currentUser) =>
+            currentUser.id ===
+            user.id
+              ? {
+                  ...currentUser,
+                  name: newUserName.trim(),
+                }
+              : currentUser
+        )
     );
   };
 
-  /* =========================
-     ELIMINAR
-  ========================= */
-
-  const deleteUser = (user: UserItem) => {
-    const confirmDelete = window.confirm(
-      `¿Seguro que quieres eliminar al usuario "${user.name}"?`
-    );
+  const deleteUser = (
+    user: UserItem
+  ) => {
+    const confirmDelete =
+      window.confirm(
+        `¿Seguro que quieres eliminar al usuario "${user.name}"?`
+      );
 
     if (!confirmDelete) return;
 
-    setUsers((currentUsers) =>
-      currentUsers.filter(
-        (currentUser) => currentUser.id !== user.id
-      )
+    setUsers(
+      (currentUsers) =>
+        currentUsers.filter(
+          (currentUser) =>
+            currentUser.id !==
+            user.id
+        )
     );
   };
 
-  /* =========================
-     INICIALES
-  ========================= */
+  const getInitials = (
+    name: string
+  ) => {
+    const words =
+      name.trim().split(" ");
 
-  const getInitials = (name: string) => {
-    const words = name.trim().split(" ");
-
-    if (words.length === 1) {
-      return words[0].substring(0, 2).toUpperCase();
+    if (
+      words.length === 1
+    ) {
+      return words[0]
+        .substring(0, 2)
+        .toUpperCase();
     }
 
     return (
@@ -186,19 +266,33 @@ function UsersPage() {
     ).toUpperCase();
   };
 
+  const formatRole = (
+    role: UserItem["role"]
+  ) => {
+    if (role === "ADMIN") {
+      return "Administrador";
+    }
+
+    if (
+      role === "PROFESOR"
+    ) {
+      return "Profesor";
+    }
+
+    return "Estudiante";
+  };
+
   return (
     <div className="users-page">
-      {/* VOLVER */}
-
       <button
         className="users-back-button"
-        onClick={() => navigate("/")}
+        onClick={() =>
+          navigate("/")
+        }
       >
         <ArrowLeft size={18} />
         Volver al inicio
       </button>
-
-      {/* HEADER */}
 
       <header className="users-header">
         <div>
@@ -209,75 +303,101 @@ function UsersPage() {
           <h1>Usuarios</h1>
 
           <p>
-            Gestiona las personas que pueden acceder al sistema
-            de inventario del Colegio Don Bosco y controla sus
-            permisos.
+            Gestiona administradores,
+            profesores y estudiantes
+            que pueden acceder al
+            sistema de inventario.
           </p>
         </div>
 
         <button
           className="new-user-button"
-          onClick={() => setShowModal(true)}
+          onClick={() =>
+            setShowModal(true)
+          }
         >
           <UserPlus size={19} />
           Nuevo usuario
         </button>
       </header>
 
-      {/* ESTADÍSTICAS */}
-
       <section className="users-stats">
         <div className="user-stat-card">
-          <div className="user-stat-icon blue">
-            <Users size={24} />
+          <div className="user-stat-icon gold">
+            <ShieldCheck
+              size={24}
+            />
           </div>
 
           <div>
-            <span>Total usuarios</span>
-            <strong>{users.length}</strong>
-            <small>Registrados en el sistema</small>
+            <span>
+              Administradores
+            </span>
+
+            <strong>
+              {adminCount}
+            </strong>
+
+            <small>
+              Acceso completo
+            </small>
           </div>
         </div>
 
         <div className="user-stat-card">
-          <div className="user-stat-icon gold">
-            <ShieldCheck size={24} />
+          <div className="user-stat-icon blue">
+            <UserRound
+              size={24}
+            />
           </div>
 
           <div>
-            <span>Administradores</span>
-            <strong>{adminCount}</strong>
-            <small>Con acceso completo</small>
+            <span>Profesores</span>
+
+            <strong>
+              {teacherCount}
+            </strong>
+
+            <small>
+              Consulta y solicitudes
+            </small>
           </div>
         </div>
 
         <div className="user-stat-card">
           <div className="user-stat-icon green">
-            <UserRound size={24} />
+            <Users size={24} />
           </div>
 
           <div>
-            <span>Usuarios</span>
-            <strong>{normalUsersCount}</strong>
-            <small>Acceso estándar</small>
+            <span>Estudiantes</span>
+
+            <strong>
+              {studentCount}
+            </strong>
+
+            <small>
+              Acceso limitado
+            </small>
           </div>
         </div>
       </section>
 
-      {/* PANEL PRINCIPAL */}
-
       <section className="users-panel">
         <div className="users-panel-header">
           <div>
-            <h2>Usuarios registrados</h2>
+            <h2>
+              Usuarios registrados
+            </h2>
 
             <p>
-              {filteredUsers.length} usuarios encontrados
+              {
+                filteredUsers.length
+              }{" "}
+              usuarios encontrados
             </p>
           </div>
         </div>
-
-        {/* BUSCADOR Y FILTRO */}
 
         <div className="users-toolbar">
           <div className="users-search">
@@ -288,7 +408,9 @@ function UsersPage() {
               placeholder="Buscar por nombre, carnet o rol..."
               value={search}
               onChange={(e) =>
-                setSearch(e.target.value)
+                setSearch(
+                  e.target.value
+                )
               }
             />
           </div>
@@ -299,27 +421,33 @@ function UsersPage() {
             <select
               value={roleFilter}
               onChange={(e) =>
-                setRoleFilter(e.target.value)
+                setRoleFilter(
+                  e.target.value
+                )
               }
             >
               <option value="Todos">
                 Todos los roles
               </option>
 
-              <option value="admin">
+              <option value="ADMIN">
                 Administradores
               </option>
 
-              <option value="usuario">
-                Usuarios
+              <option value="PROFESOR">
+                Profesores
+              </option>
+
+              <option value="ESTUDIANTE">
+                Estudiantes
               </option>
             </select>
 
-            <ChevronDown size={16} />
+            <ChevronDown
+              size={16}
+            />
           </div>
         </div>
-
-        {/* TABLA */}
 
         <div className="users-table-wrapper">
           <table className="users-table">
@@ -334,119 +462,146 @@ function UsersPage() {
             </thead>
 
             <tbody>
-              {filteredUsers.map((user, index) => (
-                <tr key={user.id}>
-                  {/* USUARIO */}
+              {filteredUsers.map(
+                (user, index) => (
+                  <tr key={user.id}>
+                    <td>
+                      <div className="registered-user">
+                        <div
+                          className={`registered-user-avatar user-avatar-${
+                            (index %
+                              4) +
+                            1
+                          }`}
+                        >
+                          {getInitials(
+                            user.name
+                          )}
+                        </div>
 
-                  <td>
-                    <div className="registered-user">
-                      <div
-                        className={`registered-user-avatar user-avatar-${
-                          (index % 4) + 1
-                        }`}
-                      >
-                        {getInitials(user.name)}
+                        <div>
+                          <strong>
+                            {
+                              user.name
+                            }
+                          </strong>
+
+                          <span>
+                            Usuario #
+                            {String(
+                              user.id
+                            ).slice(
+                              -4
+                            )}
+                          </span>
+                        </div>
                       </div>
+                    </td>
 
-                      <div>
-                        <strong>
-                          {user.name}
-                        </strong>
+                    <td>
+                      <div className="user-carnet">
+                        <IdCard
+                          size={15}
+                        />
 
                         <span>
-                          Usuario #{String(user.id).slice(-4)}
+                          {
+                            user.carnet
+                          }
                         </span>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* CARNET */}
+                    <td>
+                      <span
+                        className={`user-role ${
+                          user.role ===
+                          "ADMIN"
+                            ? "administrator"
+                            : "normal"
+                        }`}
+                      >
+                        {user.role ===
+                          "ADMIN" && (
+                          <ShieldCheck
+                            size={13}
+                          />
+                        )}
 
-                  <td>
-                    <div className="user-carnet">
-                      <IdCard size={15} />
-
-                      <span>
-                        {user.carnet}
+                        {formatRole(
+                          user.role
+                        )}
                       </span>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* ROL */}
+                    <td>
+                      <span className="user-status">
+                        <span></span>
+                        Activo
+                      </span>
+                    </td>
 
-                  <td>
-                    <span
-                      className={`user-role ${
-                        user.role.toLowerCase() === "admin"
-                          ? "administrator"
-                          : "normal"
-                      }`}
-                    >
-                      {user.role.toLowerCase() === "admin" && (
-                        <ShieldCheck size={13} />
-                      )}
+                    <td>
+                      <div className="user-actions">
+                        <button
+                          className="user-edit-button"
+                          onClick={() =>
+                            editUser(
+                              user
+                            )
+                          }
+                          title="Editar usuario"
+                        >
+                          <Pencil
+                            size={16}
+                          />
+                        </button>
 
-                      {user.role}
-                    </span>
-                  </td>
-
-                  {/* ESTADO */}
-
-                  <td>
-                    <span className="user-status">
-                      <span></span>
-                      Activo
-                    </span>
-                  </td>
-
-                  {/* ACCIONES */}
-
-                  <td>
-                    <div className="user-actions">
-                      <button
-                        className="user-edit-button"
-                        onClick={() =>
-                          editUser(user)
-                        }
-                        title="Editar usuario"
-                      >
-                        <Pencil size={16} />
-                      </button>
-
-                      <button
-                        className="user-delete-button"
-                        onClick={() =>
-                          deleteUser(user)
-                        }
-                        title="Eliminar usuario"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        <button
+                          className="user-delete-button"
+                          onClick={() =>
+                            deleteUser(
+                              user
+                            )
+                          }
+                          title="Eliminar usuario"
+                        >
+                          <Trash2
+                            size={16}
+                          />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
 
-          {/* SIN RESULTADOS */}
-
-          {filteredUsers.length === 0 && (
+          {filteredUsers.length ===
+            0 && (
             <div className="empty-users">
               <div className="empty-users-icon">
-                <Users size={35} />
+                <Users
+                  size={35}
+                />
               </div>
 
-              <h3>No encontramos usuarios</h3>
+              <h3>
+                No encontramos usuarios
+              </h3>
 
               <p>
-                Prueba cambiando el nombre o el filtro.
+                Prueba cambiando el
+                nombre o el filtro.
               </p>
 
               <button
                 onClick={() => {
                   setSearch("");
-                  setRoleFilter("Todos");
+                  setRoleFilter(
+                    "Todos"
+                  );
                 }}
               >
                 Limpiar filtros
@@ -455,13 +610,16 @@ function UsersPage() {
           )}
         </div>
 
-        {/* FOOTER */}
-
-        {filteredUsers.length > 0 && (
+        {filteredUsers.length >
+          0 && (
           <div className="users-panel-footer">
             <span>
-              Mostrando {filteredUsers.length} de{" "}
-              {users.length} usuarios
+              Mostrando{" "}
+              {
+                filteredUsers.length
+              }{" "}
+              de {users.length}{" "}
+              usuarios
             </span>
 
             <div className="users-footer-info">
@@ -471,77 +629,88 @@ function UsersPage() {
               </span>
 
               <span>
-                <ShieldCheck size={13} />
-                {adminCount} administradores
+                <ShieldCheck
+                  size={13}
+                />
+                {adminCount}{" "}
+                administradores
               </span>
             </div>
           </div>
         )}
       </section>
 
-      {/* MODAL NUEVO USUARIO */}
-
       {showModal && (
         <div
           className="user-modal-overlay"
           onMouseDown={(event) => {
             if (
-              event.currentTarget === event.target
+              event.currentTarget ===
+              event.target
             ) {
-              setShowModal(false);
+              setShowModal(
+                false
+              );
             }
           }}
         >
           <div className="user-modal">
-            {/* HEADER MODAL */}
-
             <div className="user-modal-header">
               <div>
-                <span>NUEVO USUARIO</span>
-                <h2>Registrar usuario</h2>
+                <span>
+                  NUEVO USUARIO
+                </span>
+
+                <h2>
+                  Registrar usuario
+                </h2>
 
                 <p>
-                  Crea una nueva cuenta para acceder al sistema.
+                  Crea una nueva cuenta
+                  para acceder al sistema.
                 </p>
               </div>
 
               <button
                 onClick={() =>
-                  setShowModal(false)
+                  setShowModal(
+                    false
+                  )
                 }
               >
                 <X size={19} />
               </button>
             </div>
 
-            {/* FORM */}
-
             <form
               className="new-user-form"
-              onSubmit={handleCreateUser}
+              onSubmit={
+                handleCreateUser
+              }
             >
-              {/* NOMBRE */}
-
               <div className="new-user-form-group">
                 <label>
                   Nombre completo
                 </label>
 
                 <div className="new-user-input">
-                  <UserRound size={18} />
+                  <UserRound
+                    size={18}
+                  />
 
                   <input
                     type="text"
                     placeholder="Ej: Juan Pérez"
                     value={newName}
                     onChange={(e) =>
-                      setNewName(e.target.value)
+                      setNewName(
+                        e.target
+                          .value
+                      )
                     }
                   />
                 </div>
               </div>
-
-              {/* CARNET */}
 
               <div className="new-user-form-group">
                 <label>
@@ -549,20 +718,25 @@ function UsersPage() {
                 </label>
 
                 <div className="new-user-input">
-                  <IdCard size={18} />
+                  <IdCard
+                    size={18}
+                  />
 
                   <input
                     type="text"
                     placeholder="Ej: 12345678"
-                    value={newCarnet}
+                    value={
+                      newCarnet
+                    }
                     onChange={(e) =>
-                      setNewCarnet(e.target.value)
+                      setNewCarnet(
+                        e.target
+                          .value
+                      )
                     }
                   />
                 </div>
               </div>
-
-              {/* CONTRASEÑA */}
 
               <div className="new-user-form-group">
                 <label>
@@ -570,68 +744,86 @@ function UsersPage() {
                 </label>
 
                 <div className="new-user-input">
-                  <KeyRound size={18} />
+                  <KeyRound
+                    size={18}
+                  />
 
                   <input
                     type="password"
                     placeholder="Crear contraseña"
-                    value={newPassword}
+                    value={
+                      newPassword
+                    }
                     onChange={(e) =>
-                      setNewPassword(e.target.value)
+                      setNewPassword(
+                        e.target
+                          .value
+                      )
                     }
                   />
                 </div>
               </div>
 
-              {/* ROL */}
-
               <div className="new-user-form-group">
-                <label>
-                  Rol
-                </label>
+                <label>Rol</label>
 
                 <select
                   className="new-user-role-select"
                   value={newRole}
                   onChange={(e) =>
-                    setNewRole(e.target.value)
+                    setNewRole(
+                      e.target
+                        .value as
+                        | "ADMIN"
+                        | "PROFESOR"
+                        | "ESTUDIANTE"
+                    )
                   }
                 >
-                  <option value="usuario">
-                    Usuario
+                  <option value="ESTUDIANTE">
+                    Estudiante
                   </option>
 
-                  <option value="admin">
+                  <option value="PROFESOR">
+                    Profesor
+                  </option>
+
+                  <option value="ADMIN">
                     Administrador
                   </option>
                 </select>
               </div>
 
-              {/* INFORMACIÓN */}
-
               <div className="role-information">
-                <ShieldCheck size={18} />
+                <ShieldCheck
+                  size={18}
+                />
 
                 <div>
                   <strong>
-                    Permisos de usuario
+                    Permisos
                   </strong>
 
                   <p>
-                    Los administradores tienen acceso a todas
-                    las secciones del sistema.
+                    {newRole ===
+                    "ADMIN"
+                      ? "Acceso completo al sistema."
+                      : newRole ===
+                        "PROFESOR"
+                      ? "Puede consultar objetos y solicitar préstamos."
+                      : "Puede consultar inventario y sus propios préstamos."}
                   </p>
                 </div>
               </div>
-
-              {/* BOTONES */}
 
               <div className="new-user-form-actions">
                 <button
                   type="button"
                   className="cancel-user-button"
                   onClick={() =>
-                    setShowModal(false)
+                    setShowModal(
+                      false
+                    )
                   }
                 >
                   Cancelar
