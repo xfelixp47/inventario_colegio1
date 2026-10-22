@@ -1,110 +1,63 @@
-import { useMemo, useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
   ArrowLeft,
   Plus,
   Search,
-  Handshake,
-  Clock3,
   CheckCircle2,
-  AlertTriangle,
+  XCircle,
   RotateCcw,
-  CalendarDays,
-  UserRound,
-  Package,
-  ChevronDown,
-  Filter,
+  Clock3,
+  Handshake,
 } from "lucide-react";
 
+import { authRepository } from "../repositories/authRepository";
+
+import {
+  inventoryStore,
+  type LoanRecord,
+} from "../services/inventoryStore";
+
 import "./LoansPage.css";
-
-type LoanStatus = "Activo" | "Devuelto" | "Vencido";
-
-type Loan = {
-  id: number;
-  person: string;
-  course: string;
-  item: string;
-  code: string;
-  loanDate: string;
-  returnDate: string;
-  status: LoanStatus;
-  initials: string;
-};
 
 function LoansPage() {
   const navigate = useNavigate();
 
+  const user = authRepository.getCurrentUser();
+  const isAdmin = user?.role === "ADMIN";
+
+  const [loans, setLoans] = useState<LoanRecord[]>(
+    () => inventoryStore.getLoans()
+  );
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Todos");
 
-  const [loans, setLoans] = useState<Loan[]>([
-    {
-      id: 1,
-      person: "Carlos Ramírez",
-      course: "5° A",
-      item: "Laptop Lenovo IdeaPad",
-      code: "DB-003",
-      loanDate: "28/08/2026",
-      returnDate: "05/09/2026",
-      status: "Activo",
-      initials: "CR",
-    },
-    {
-      id: 2,
-      person: "María González",
-      course: "3° B",
-      item: "Proyector Epson X49",
-      code: "DB-001",
-      loanDate: "30/08/2026",
-      returnDate: "06/09/2026",
-      status: "Activo",
-      initials: "MG",
-    },
-    {
-      id: 3,
-      person: "Luis Sánchez",
-      course: "4° A",
-      item: "Micrófono inalámbrico",
-      code: "DB-002",
-      loanDate: "20/08/2026",
-      returnDate: "27/08/2026",
-      status: "Devuelto",
-      initials: "LS",
-    },
-    {
-      id: 4,
-      person: "Ana Núñez",
-      course: "6° B",
-      item: "Balón de fútbol",
-      code: "DB-004",
-      loanDate: "21/08/2026",
-      returnDate: "29/08/2026",
-      status: "Vencido",
-      initials: "AN",
-    },
-    {
-      id: 5,
-      person: "José Vargas",
-      course: "2° C",
-      item: "Microscopio escolar",
-      code: "DB-006",
-      loanDate: "31/08/2026",
-      returnDate: "07/09/2026",
-      status: "Activo",
-      initials: "JV",
-    },
-  ]);
+  useEffect(() => {
+    const reload = () => setLoans(inventoryStore.getLoans());
 
-  const filteredLoans = useMemo(() => {
+    window.addEventListener("storage", reload);
+    window.addEventListener("donbosco:changed", reload);
+
+    return () => {
+      window.removeEventListener("storage", reload);
+      window.removeEventListener("donbosco:changed", reload);
+    };
+  }, []);
+
+  const visibleLoans = useMemo(() => {
     return loans.filter((loan) => {
+      if (!isAdmin && loan.requesterId !== user?.id) {
+        return false;
+      }
+
       const text = search.toLowerCase();
 
       const matchesSearch =
         loan.person.toLowerCase().includes(text) ||
         loan.item.toLowerCase().includes(text) ||
-        loan.course.toLowerCase().includes(text) ||
         loan.code.toLowerCase().includes(text);
 
       const matchesStatus =
@@ -113,48 +66,64 @@ function LoansPage() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [loans, search, statusFilter]);
+  }, [loans, search, statusFilter, isAdmin, user?.id]);
 
-  const activeLoans = loans.filter(
+  const ownLoans = loans.filter(
+    (loan) => isAdmin || loan.requesterId === user?.id
+  );
+
+  const pending = ownLoans.filter(
+    (loan) => loan.status === "Pendiente"
+  ).length;
+
+  const active = ownLoans.filter(
     (loan) => loan.status === "Activo"
   ).length;
 
-  const returnedLoans = loans.filter(
+  const returned = ownLoans.filter(
     (loan) => loan.status === "Devuelto"
   ).length;
 
-  const expiredLoans = loans.filter(
-    (loan) => loan.status === "Vencido"
-  ).length;
+  const approveLoan = (id: number) => {
+    if (!isAdmin) return;
 
-  const markAsReturned = (loan: Loan) => {
-    const confirmReturn = window.confirm(
-      `¿Confirmas la devolución de "${loan.item}" por ${loan.person}?`
-    );
-
-    if (!confirmReturn) return;
-
-    setLoans((currentLoans) =>
-      currentLoans.map((currentLoan) =>
-        currentLoan.id === loan.id
-          ? {
-              ...currentLoan,
-              status: "Devuelto",
-            }
-          : currentLoan
-      )
-    );
+    try {
+      inventoryStore.approveLoan(id);
+      setLoans(inventoryStore.getLoans());
+      alert("Solicitud aprobada correctamente.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo aprobar."
+      );
+    }
   };
 
-  const clearFilters = () => {
-    setSearch("");
-    setStatusFilter("Todos");
+  const rejectLoan = (id: number) => {
+    if (!isAdmin) return;
+
+    if (!confirm("¿Seguro que deseas rechazar la solicitud?")) {
+      return;
+    }
+
+    inventoryStore.rejectLoan(id);
+    setLoans(inventoryStore.getLoans());
+  };
+
+  const returnLoan = (id: number) => {
+    if (!isAdmin) return;
+
+    if (!confirm("¿Confirmas la devolución del objeto?")) {
+      return;
+    }
+
+    inventoryStore.returnLoan(id);
+    setLoans(inventoryStore.getLoans());
   };
 
   return (
     <div className="loans-page">
-      {/* BOTÓN VOLVER */}
-
       <button
         className="loans-back-button"
         onClick={() => navigate("/")}
@@ -163,19 +132,20 @@ function LoansPage() {
         Volver al inicio
       </button>
 
-      {/* HEADER */}
-
       <header className="loans-header">
         <div>
           <span className="loans-eyebrow">
-            CONTROL DE MOVIMIENTOS
+            CONTROL DE PRÉSTAMOS
           </span>
 
-          <h1>Préstamos</h1>
+          <h1>
+            {isAdmin ? "Administrar préstamos" : "Mis préstamos"}
+          </h1>
 
           <p>
-            Controla los objetos prestados, las fechas de devolución
-            y los materiales pendientes del Colegio Don Bosco.
+            {isAdmin
+              ? "Revisa y administra las solicitudes del Colegio Don Bosco."
+              : "Consulta el estado de tus solicitudes."}
           </p>
         </div>
 
@@ -184,11 +154,9 @@ function LoansPage() {
           onClick={() => navigate("/prestamos/nuevo")}
         >
           <Plus size={19} />
-          Nuevo préstamo
+          {isAdmin ? "Nuevo préstamo" : "Solicitar objeto"}
         </button>
       </header>
-
-      {/* ESTADÍSTICAS */}
 
       <section className="loans-stats">
         <div className="loan-stat-card">
@@ -197,9 +165,9 @@ function LoansPage() {
           </div>
 
           <div>
-            <span>Total préstamos</span>
-            <strong>{loans.length}</strong>
-            <small>Registros realizados</small>
+            <span>Total solicitudes</span>
+            <strong>{ownLoans.length}</strong>
+            <small>Solicitudes registradas</small>
           </div>
         </div>
 
@@ -209,9 +177,9 @@ function LoansPage() {
           </div>
 
           <div>
-            <span>Activos</span>
-            <strong>{activeLoans}</strong>
-            <small>Pendientes de devolución</small>
+            <span>Pendientes</span>
+            <strong>{pending}</strong>
+            <small>Esperando aprobación</small>
           </div>
         </div>
 
@@ -221,256 +189,250 @@ function LoansPage() {
           </div>
 
           <div>
-            <span>Devueltos</span>
-            <strong>{returnedLoans}</strong>
-            <small>Préstamos completados</small>
+            <span>Activos</span>
+            <strong>{active}</strong>
+            <small>Objetos prestados</small>
           </div>
         </div>
 
         <div className="loan-stat-card">
-          <div className="loan-stat-icon red">
-            <AlertTriangle size={24} />
+          <div className="loan-stat-icon green">
+            <RotateCcw size={24} />
           </div>
 
           <div>
-            <span>Vencidos</span>
-            <strong>{expiredLoans}</strong>
-            <small>Requieren atención</small>
+            <span>Devueltos</span>
+            <strong>{returned}</strong>
+            <small>Préstamos finalizados</small>
           </div>
         </div>
       </section>
 
-      {/* PANEL */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          margin: "25px 0",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search
+            size={18}
+            style={{
+              position: "absolute",
+              top: 13,
+              left: 12,
+              color: "#64748b",
+            }}
+          />
 
-      <section className="loans-panel">
-        <div className="loans-panel-header">
-          <div>
-            <h2>Registro de préstamos</h2>
-
-            <p>
-              {filteredLoans.length} préstamos encontrados
-            </p>
-          </div>
+          <input
+            placeholder="Buscar solicitudes..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "12px 12px 12px 40px",
+              border: "1px solid #dbe2ea",
+              borderRadius: 10,
+            }}
+          />
         </div>
 
-        {/* BUSCADOR */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid #dbe2ea",
+          }}
+        >
+          {[
+            "Todos",
+            "Pendiente",
+            "Activo",
+            "Devuelto",
+            "Vencido",
+            "Rechazado",
+          ].map((status) => (
+            <option key={status}>{status}</option>
+          ))}
+        </select>
+      </div>
 
-        <div className="loans-toolbar">
-          <div className="loans-search">
-            <Search size={19} />
+      <div
+        style={{
+          background: "white",
+          borderRadius: 18,
+          padding: 20,
+          overflowX: "auto",
+        }}
+      >
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            textAlign: "left",
+          }}
+        >
+          <thead>
+            <tr>
+              {[
+                "Solicitante",
+                "Objeto",
+                "Fecha",
+                "Devolución",
+                "Estado",
+                "Acciones",
+              ].map((title) => (
+                <th
+                  key={title}
+                  style={{
+                    padding: 14,
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  {title}
+                </th>
+              ))}
+            </tr>
+          </thead>
 
-            <input
-              type="text"
-              placeholder="Buscar estudiante, objeto, curso o código..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <tbody>
+            {visibleLoans.map((loan) => (
+              <tr key={loan.id}>
+                <td style={{ padding: 14 }}>
+                  <strong>{loan.person}</strong>
+                  <div style={{ color: "#64748b" }}>
+                    {loan.course}
+                  </div>
+                </td>
 
-          <div className="loans-filter">
-            <Filter size={17} />
+                <td style={{ padding: 14 }}>
+                  <strong>{loan.item}</strong>
+                  <div style={{ color: "#64748b" }}>
+                    {loan.code}
+                  </div>
+                </td>
 
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value)
-              }
-            >
-              <option value="Todos">
-                Todos los estados
-              </option>
+                <td style={{ padding: 14 }}>{loan.loanDate}</td>
+                <td style={{ padding: 14 }}>{loan.returnDate}</td>
 
-              <option value="Activo">
-                Activos
-              </option>
-
-              <option value="Devuelto">
-                Devueltos
-              </option>
-
-              <option value="Vencido">
-                Vencidos
-              </option>
-            </select>
-
-            <ChevronDown size={16} />
-          </div>
-        </div>
-
-        {/* TABLA */}
-
-        <div className="loans-table-wrapper">
-          <table className="loans-table">
-            <thead>
-              <tr>
-                <th>PERSONA</th>
-                <th>OBJETO</th>
-                <th>FECHA PRÉSTAMO</th>
-                <th>DEVOLUCIÓN</th>
-                <th>ESTADO</th>
-                <th>ACCIÓN</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredLoans.map((loan, index) => (
-                <tr key={loan.id}>
-                  {/* PERSONA */}
-
-                  <td>
-                    <div className="loan-user">
-                      <div
-                        className={`loan-user-avatar avatar-${
-                          (index % 4) + 1
-                        }`}
-                      >
-                        {loan.initials}
-                      </div>
-
-                      <div>
-                        <strong>{loan.person}</strong>
-
-                        <span>
-                          <UserRound size={11} />
-                          {loan.course}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* OBJETO */}
-
-                  <td>
-                    <div className="loan-item">
-                      <div className="loan-item-icon">
-                        <Package size={17} />
-                      </div>
-
-                      <div>
-                        <strong>{loan.item}</strong>
-                        <span>{loan.code}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* FECHA PRESTAMO */}
-
-                  <td>
-                    <div className="loan-date">
-                      <CalendarDays size={14} />
-                      {loan.loanDate}
-                    </div>
-                  </td>
-
-                  {/* DEVOLUCIÓN */}
-
-                  <td>
-                    <div
-                      className={`loan-date ${
-                        loan.status === "Vencido"
-                          ? "expired-date"
-                          : ""
-                      }`}
-                    >
-                      <CalendarDays size={14} />
-                      {loan.returnDate}
-                    </div>
-                  </td>
-
-                  {/* ESTADO */}
-
-                  <td>
-                    <span
-                      className={`loan-status ${
-                        loan.status === "Activo"
-                          ? "active"
+                <td style={{ padding: 14 }}>
+                  <span
+                    style={{
+                      padding: "7px 11px",
+                      borderRadius: 20,
+                      fontWeight: 600,
+                      background:
+                        loan.status === "Pendiente"
+                          ? "#fef3c7"
+                          : loan.status === "Activo"
+                          ? "#dbeafe"
                           : loan.status === "Devuelto"
-                          ? "returned"
-                          : "expired"
-                      }`}
-                    >
-                      <span className="loan-status-dot"></span>
+                          ? "#dcfce7"
+                          : loan.status === "Rechazado"
+                          ? "#fee2e2"
+                          : "#fef3c7",
+                    }}
+                  >
+                    {loan.status}
+                  </span>
+                </td>
 
-                      {loan.status}
-                    </span>
-                  </td>
-
-                  {/* ACCIÓN */}
-
-                  <td>
-                    {loan.status !== "Devuelto" ? (
+                <td style={{ padding: 14 }}>
+                  {isAdmin && loan.status === "Pendiente" && (
+                    <div style={{ display: "flex", gap: 8 }}>
                       <button
-                        className="return-loan-button"
-                        onClick={() =>
-                          markAsReturned(loan)
-                        }
+                        onClick={() => approveLoan(loan.id)}
+                        title="Aprobar solicitud"
+                        style={actionButton("#16a34a")}
                       >
-                        <RotateCcw size={15} />
+                        <CheckCircle2 size={17} />
+                        Aprobar
+                      </button>
+
+                      <button
+                        onClick={() => rejectLoan(loan.id)}
+                        title="Rechazar solicitud"
+                        style={actionButton("#dc2626")}
+                      >
+                        <XCircle size={17} />
+                        Rechazar
+                      </button>
+                    </div>
+                  )}
+
+                  {isAdmin &&
+                    ["Activo", "Vencido"].includes(loan.status) && (
+                      <button
+                        onClick={() => returnLoan(loan.id)}
+                        style={actionButton("#2563eb")}
+                      >
+                        <RotateCcw size={16} />
                         Devolver
                       </button>
-                    ) : (
-                      <span className="completed-label">
-                        <CheckCircle2 size={15} />
-                        Completado
-                      </span>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
 
-          {/* SIN RESULTADOS */}
+                  {!isAdmin && (
+                    <span style={{ color: "#64748b" }}>
+                      {loan.status === "Pendiente"
+                        ? "Esperando respuesta"
+                        : loan.status === "Activo"
+                        ? "Solicitud aprobada"
+                        : loan.status === "Rechazado"
+                        ? "Solicitud rechazada"
+                        : loan.status === "Devuelto"
+                        ? "Finalizado"
+                        : "Revisar devolución"}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-          {filteredLoans.length === 0 && (
-            <div className="empty-loans">
-              <div className="empty-loans-icon">
-                <Handshake size={34} />
-              </div>
+        {visibleLoans.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 50,
+              color: "#64748b",
+            }}
+          >
+            <Handshake size={40} style={{ margin: "auto" }} />
 
-              <h3>No encontramos préstamos</h3>
+            <h3>No hay solicitudes registradas</h3>
 
-              <p>
-                Prueba cambiando la búsqueda o los filtros.
-              </p>
-
-              <button onClick={clearFilters}>
-                Limpiar filtros
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* FOOTER */}
-
-        {filteredLoans.length > 0 && (
-          <div className="loans-panel-footer">
-            <span>
-              Mostrando {filteredLoans.length} de{" "}
-              {loans.length} préstamos
-            </span>
-
-            <div className="loans-summary">
-              <span>
-                <i className="loan-summary-dot orange"></i>
-                {activeLoans} activos
-              </span>
-
-              <span>
-                <i className="loan-summary-dot red"></i>
-                {expiredLoans} vencidos
-              </span>
-
-              <span>
-                <i className="loan-summary-dot green"></i>
-                {returnedLoans} devueltos
-              </span>
-            </div>
+            <p>
+              {isAdmin
+                ? "Las solicitudes de profesores y estudiantes aparecerán aquí."
+                : "Todavía no tienes solicitudes."}
+            </p>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
+}
+
+function actionButton(color: string): React.CSSProperties {
+  return {
+    background: color,
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 12px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    cursor: "pointer",
+    fontWeight: 600,
+  };
 }
 
 export default LoansPage;

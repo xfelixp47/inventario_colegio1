@@ -6,12 +6,15 @@ import { ArrowLeft, Send } from "lucide-react";
 import { authRepository } from "../repositories/authRepository";
 import { inventoryStore } from "../services/inventoryStore";
 
-export default function NewLoanPage() {
+function NewLoanPage() {
   const navigate = useNavigate();
   const location = useLocation();
+
   const user = authRepository.getCurrentUser();
 
   const isAdmin = user?.role === "ADMIN";
+  const isProfesor = user?.role === "PROFESOR";
+  const isEstudiante = user?.role === "ESTUDIANTE";
 
   const selectedObject =
     (location.state as { object?: string } | null)?.object ?? "";
@@ -21,7 +24,7 @@ export default function NewLoanPage() {
   );
 
   const [course, setCourse] = useState(
-    user?.role === "PROFESOR" ? "Profesor" : ""
+    isProfesor ? "Profesor" : ""
   );
 
   const [object, setObject] = useState(selectedObject);
@@ -34,6 +37,12 @@ export default function NewLoanPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!user) {
+      alert("Debes iniciar sesión.");
+      navigate("/login");
+      return;
+    }
+
     if (!student.trim() || !course.trim() || !object) {
       alert("Completa todos los campos.");
       return;
@@ -44,15 +53,15 @@ export default function NewLoanPage() {
       .find((i) => i.name === object);
 
     if (!item || item.available < 1) {
-      alert("El objeto no está disponible.");
+      alert("Este objeto no está disponible.");
       return;
     }
 
     setLoading(true);
 
     const today = new Date();
-    const due = new Date(today);
-    due.setDate(due.getDate() + 7);
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + 7);
 
     const loan = {
       id: Date.now(),
@@ -61,7 +70,7 @@ export default function NewLoanPage() {
       item: item.name,
       code: item.code,
       loanDate: today.toLocaleDateString("es-BO"),
-      returnDate: due.toLocaleDateString("es-BO"),
+      returnDate: dueDate.toLocaleDateString("es-BO"),
       status: "Pendiente" as const,
       initials: student
         .trim()
@@ -70,7 +79,7 @@ export default function NewLoanPage() {
         .map((word) => word[0])
         .join("")
         .toUpperCase(),
-      requesterId: user?.id,
+      requesterId: user.id,
     };
 
     try {
@@ -80,7 +89,9 @@ export default function NewLoanPage() {
         inventoryStore.approveLoan(loan.id);
         alert("Préstamo registrado correctamente.");
       } else {
-        alert("Solicitud enviada al administrador.");
+        alert(
+          "Solicitud enviada correctamente. El administrador podrá revisarla."
+        );
       }
 
       navigate("/prestamos");
@@ -88,7 +99,7 @@ export default function NewLoanPage() {
       alert(
         error instanceof Error
           ? error.message
-          : "Error al guardar la solicitud."
+          : "No se pudo guardar la solicitud."
       );
     } finally {
       setLoading(false);
@@ -97,21 +108,21 @@ export default function NewLoanPage() {
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
+    boxSizing: "border-box",
     padding: "13px",
     borderRadius: "10px",
     border: "1px solid #dce3ee",
     marginTop: "8px",
     marginBottom: "20px",
-    boxSizing: "border-box",
     fontSize: "15px",
   };
 
   return (
     <div
       style={{
-        maxWidth: 750,
+        maxWidth: "700px",
         margin: "auto",
-        padding: "35px 20px",
+        padding: "40px 20px",
       }}
     >
       <button
@@ -119,23 +130,23 @@ export default function NewLoanPage() {
         style={{
           border: "none",
           background: "transparent",
+          cursor: "pointer",
           display: "flex",
           alignItems: "center",
           gap: 8,
           marginBottom: 25,
-          cursor: "pointer",
         }}
       >
-        <ArrowLeft size={19} />
+        <ArrowLeft size={18} />
         Volver al inicio
       </button>
 
       <div
         style={{
           background: "white",
-          borderRadius: 20,
           padding: 35,
-          boxShadow: "0 10px 35px rgba(0,0,0,0.07)",
+          borderRadius: 20,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
         }}
       >
         <h1>
@@ -144,8 +155,8 @@ export default function NewLoanPage() {
 
         <p style={{ color: "#64748b", marginBottom: 30 }}>
           {isAdmin
-            ? "Registra un préstamo de material del colegio."
-            : "Envía una solicitud para que el administrador la revise."}
+            ? "Registra un préstamo para el colegio."
+            : "Solicita un objeto del inventario. El administrador revisará tu solicitud."}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -156,11 +167,16 @@ export default function NewLoanPage() {
             value={student}
             readOnly={!isAdmin}
             onChange={(e) => setStudent(e.target.value)}
-            placeholder="Nombre completo"
             required
           />
 
-          <label>Curso o área</label>
+          <label>
+            {isProfesor
+              ? "Área"
+              : isEstudiante
+              ? "Curso"
+              : "Curso o área"}
+          </label>
 
           <input
             style={inputStyle}
@@ -182,7 +198,7 @@ export default function NewLoanPage() {
 
             {availableItems.map((item) => (
               <option key={item.id} value={item.name}>
-                {item.name} ({item.available} disponibles)
+                {item.name} — {item.available} disponibles
               </option>
             ))}
           </select>
@@ -192,17 +208,17 @@ export default function NewLoanPage() {
             disabled={loading}
             style={{
               width: "100%",
-              padding: 15,
+              padding: "15px",
+              border: "none",
+              borderRadius: "10px",
               background: "#1769df",
               color: "white",
-              border: "none",
-              borderRadius: 10,
-              fontWeight: 700,
+              fontWeight: "bold",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 10,
+              gap: 8,
             }}
           >
             <Send size={18} />
@@ -217,3 +233,5 @@ export default function NewLoanPage() {
     </div>
   );
 }
+
+export default NewLoanPage;

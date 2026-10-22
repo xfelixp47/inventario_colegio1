@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { authRepository } from "../repositories/authRepository";
+
 import {
   inventoryStore,
   type InventoryItem,
@@ -20,12 +21,16 @@ import {
 
 import "./InventoryPage.css";
 
-export default function InventoryPage() {
+function InventoryPage() {
   const navigate = useNavigate();
+
   const user = authRepository.getCurrentUser();
 
   const isAdmin = user?.role === "ADMIN";
-  const canRequest = user?.role === "PROFESOR";
+
+  const canRequest =
+    user?.role === "PROFESOR" ||
+    user?.role === "ESTUDIANTE";
 
   const [objects, setObjects] = useState<InventoryItem[]>(
     () => inventoryStore.getItems()
@@ -36,7 +41,9 @@ export default function InventoryPage() {
   const [status, setStatus] = useState("Todos");
 
   useEffect(() => {
-    const reload = () => setObjects(inventoryStore.getItems());
+    const reload = () => {
+      setObjects(inventoryStore.getItems());
+    };
 
     window.addEventListener("storage", reload);
     window.addEventListener("donbosco:changed", reload);
@@ -52,37 +59,55 @@ export default function InventoryPage() {
     ...Array.from(new Set(objects.map((item) => item.category))),
   ];
 
-  const filtered = useMemo(() => {
+  const filteredObjects = useMemo(() => {
     return objects.filter((item) => {
       const q = search.toLowerCase();
 
+      const matchesSearch =
+        item.name.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q);
+
+      const matchesCategory =
+        category === "Todas" || item.category === category;
+
+      const matchesStatus =
+        status === "Todos" || item.status === status;
+
       return (
-        (item.name.toLowerCase().includes(q) ||
-          item.code.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q)) &&
-        (category === "Todas" || item.category === category) &&
-        (status === "Todos" || item.status === status)
+        matchesSearch &&
+        matchesCategory &&
+        matchesStatus
       );
     });
   }, [objects, search, category, status]);
 
-  const total = objects.reduce((sum, item) => sum + item.quantity, 0);
+  const total = objects.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
+
   const available = objects.reduce(
     (sum, item) => sum + item.available,
     0
   );
 
-  const removeObject = (item: InventoryItem) => {
+  const borrowed = total - available;
+
+  const deleteObject = (item: InventoryItem) => {
     if (!isAdmin) return;
 
     if (item.available < item.quantity) {
-      alert("No puedes eliminar un objeto que tiene préstamos activos.");
+      alert(
+        "No puedes eliminar este objeto porque tiene préstamos activos."
+      );
       return;
     }
 
     if (!confirm(`¿Eliminar "${item.name}"?`)) return;
 
     const updated = objects.filter((i) => i.id !== item.id);
+
     inventoryStore.setItems(updated);
     setObjects(updated);
   };
@@ -90,7 +115,7 @@ export default function InventoryPage() {
   const editObject = (item: InventoryItem) => {
     if (!isAdmin) return;
 
-    const name = prompt("Nombre:", item.name)?.trim();
+    const name = prompt("Nombre del objeto:", item.name)?.trim();
     if (!name) return;
 
     const quantityText = prompt(
@@ -101,10 +126,15 @@ export default function InventoryPage() {
     if (quantityText === null) return;
 
     const quantity = Number(quantityText);
-    const borrowed = item.quantity - item.available;
+    const borrowedUnits = item.quantity - item.available;
 
-    if (!Number.isInteger(quantity) || quantity < borrowed) {
-      alert("Cantidad inválida o menor que las unidades prestadas.");
+    if (
+      !Number.isInteger(quantity) ||
+      quantity < borrowedUnits
+    ) {
+      alert(
+        "La cantidad no puede ser menor que las unidades prestadas."
+      );
       return;
     }
 
@@ -122,7 +152,7 @@ export default function InventoryPage() {
             ...i,
             name,
             quantity,
-            available: quantity - borrowed,
+            available: quantity - borrowedUnits,
             category: newCategory,
             location,
           }
@@ -131,6 +161,16 @@ export default function InventoryPage() {
 
     inventoryStore.setItems(updated);
     setObjects(inventoryStore.getItems());
+  };
+
+  const requestObject = (item: InventoryItem) => {
+    if (!canRequest || item.available < 1) return;
+
+    navigate("/prestamos/nuevo", {
+      state: {
+        object: item.name,
+      },
+    });
   };
 
   const inputStyle: React.CSSProperties = {
@@ -162,7 +202,9 @@ export default function InventoryPage() {
       >
         <div>
           <h1>Inventario</h1>
-          <p>Control de objetos del Colegio Don Bosco.</p>
+          <p>
+            Gestión de objetos del Colegio Don Bosco.
+          </p>
         </div>
 
         {isAdmin && (
@@ -176,7 +218,7 @@ export default function InventoryPage() {
         )}
       </header>
 
-      <div
+      <section
         style={{
           display: "flex",
           gap: 15,
@@ -186,15 +228,12 @@ export default function InventoryPage() {
       >
         <StatCard title="Total de objetos" value={total} />
         <StatCard title="Disponibles" value={available} />
-        <StatCard
-          title="Prestados"
-          value={total - available}
-        />
+        <StatCard title="Prestados" value={borrowed} />
         <StatCard
           title="Tipos de objetos"
           value={objects.length}
         />
-      </div>
+      </section>
 
       <div
         style={{
@@ -234,7 +273,9 @@ export default function InventoryPage() {
           style={inputStyle}
         >
           {categories.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
 
@@ -243,22 +284,28 @@ export default function InventoryPage() {
           onChange={(e) => setStatus(e.target.value)}
           style={inputStyle}
         >
-          {["Todos", "Disponible", "Prestado", "Stock bajo"].map(
-            (s) => (
-              <option key={s}>{s}</option>
-            )
-          )}
+          {[
+            "Todos",
+            "Disponible",
+            "Prestado",
+            "Stock bajo",
+          ].map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gridTemplateColumns:
+            "repeat(auto-fill, minmax(260px, 1fr))",
           gap: 20,
         }}
       >
-        {filtered.map((item) => (
+        {filteredObjects.map((item) => (
           <div
             key={item.id}
             style={{
@@ -268,13 +315,25 @@ export default function InventoryPage() {
               boxShadow: "0 5px 20px rgba(0,0,0,0.06)",
             }}
           >
-            <div style={{ fontSize: 42, marginBottom: 14 }}>
+            <div
+              style={{
+                fontSize: 42,
+                marginBottom: 14,
+              }}
+            >
               {item.emoji}
             </div>
 
-            <h3 style={{ marginBottom: 7 }}>{item.name}</h3>
+            <h3 style={{ marginBottom: 7 }}>
+              {item.name}
+            </h3>
 
-            <p style={{ color: "#64748b", fontSize: 14 }}>
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: 14,
+              }}
+            >
               {item.code} · {item.category}
             </p>
 
@@ -324,7 +383,7 @@ export default function InventoryPage() {
 
                   <button
                     style={buttonStyle("#dc2626")}
-                    onClick={() => removeObject(item)}
+                    onClick={() => deleteObject(item)}
                   >
                     <Trash2 size={16} />
                     Eliminar
@@ -335,11 +394,7 @@ export default function InventoryPage() {
               {canRequest && item.available > 0 && (
                 <button
                   style={buttonStyle("#16a34a")}
-                  onClick={() =>
-                    navigate("/prestamos/nuevo", {
-                      state: { object: item.name },
-                    })
-                  }
+                  onClick={() => requestObject(item)}
                 >
                   <Handshake size={16} />
                   Solicitar
@@ -350,7 +405,7 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {filtered.length === 0 && (
+      {filteredObjects.length === 0 && (
         <div
           style={{
             textAlign: "center",
@@ -358,9 +413,16 @@ export default function InventoryPage() {
             color: "#64748b",
           }}
         >
-          <Package size={40} style={{ margin: "auto" }} />
+          <Package
+            size={40}
+            style={{ margin: "auto" }}
+          />
+
           <h3>No se encontraron objetos</h3>
-          <p>Prueba con otra búsqueda.</p>
+
+          <p>
+            Prueba cambiando la búsqueda o los filtros.
+          </p>
         </div>
       )}
     </div>
@@ -385,15 +447,25 @@ function StatCard({
         boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
       }}
     >
-      <div style={{ color: "#64748b", fontSize: 14 }}>
+      <div
+        style={{
+          color: "#64748b",
+          fontSize: 14,
+        }}
+      >
         {title}
       </div>
-      <strong style={{ fontSize: 29 }}>{value}</strong>
+
+      <strong style={{ fontSize: 29 }}>
+        {value}
+      </strong>
     </div>
   );
 }
 
-function buttonStyle(color: string): React.CSSProperties {
+function buttonStyle(
+  color: string
+): React.CSSProperties {
   return {
     background: color,
     color: "white",
@@ -407,3 +479,5 @@ function buttonStyle(color: string): React.CSSProperties {
     cursor: "pointer",
   };
 }
+
+export default InventoryPage;

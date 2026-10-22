@@ -1,8 +1,5 @@
-import {
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+
+import { Routes, Route, Navigate } from "react-router-dom";
 
 import ProtectedRoute from "../components/auth/ProtectedRoute";
 
@@ -20,10 +17,7 @@ import NewLoanPage from "../pages/NewLoanPage";
 function AppRoutes() {
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={<LoginPage />}
-      />
+      <Route path="/login" element={<LoginPage />} />
 
       <Route
         path="/"
@@ -38,11 +32,7 @@ function AppRoutes() {
         path="/inventario"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "ADMIN",
-              "PROFESOR",
-              "ESTUDIANTE",
-            ]}
+            allowedRoles={["ADMIN", "PROFESOR", "ESTUDIANTE"]}
           >
             <InventoryPage />
           </ProtectedRoute>
@@ -53,11 +43,7 @@ function AppRoutes() {
         path="/prestamos"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "ADMIN",
-              "PROFESOR",
-              "ESTUDIANTE",
-            ]}
+            allowedRoles={["ADMIN", "PROFESOR", "ESTUDIANTE"]}
           >
             <LoansPage />
           </ProtectedRoute>
@@ -67,9 +53,7 @@ function AppRoutes() {
       <Route
         path="/inventario/nuevo"
         element={
-          <ProtectedRoute
-            allowedRoles={["ADMIN"]}
-          >
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
             <NewObjectPage />
           </ProtectedRoute>
         }
@@ -79,10 +63,7 @@ function AppRoutes() {
         path="/prestamos/nuevo"
         element={
           <ProtectedRoute
-            allowedRoles={[
-              "ADMIN",
-              "PROFESOR",
-            ]}
+            allowedRoles={["ADMIN", "PROFESOR", "ESTUDIANTE"]}
           >
             <NewLoanPage />
           </ProtectedRoute>
@@ -92,9 +73,7 @@ function AppRoutes() {
       <Route
         path="/categorias"
         element={
-          <ProtectedRoute
-            allowedRoles={["ADMIN"]}
-          >
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
             <CategoriesPage />
           </ProtectedRoute>
         }
@@ -103,9 +82,7 @@ function AppRoutes() {
       <Route
         path="/reportes"
         element={
-          <ProtectedRoute
-            allowedRoles={["ADMIN"]}
-          >
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
             <ReportsPage />
           </ProtectedRoute>
         }
@@ -114,9 +91,7 @@ function AppRoutes() {
       <Route
         path="/usuarios"
         element={
-          <ProtectedRoute
-            allowedRoles={["ADMIN"]}
-          >
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
             <UsersPage />
           </ProtectedRoute>
         }
@@ -125,9 +100,7 @@ function AppRoutes() {
       <Route
         path="/configuracion"
         element={
-          <ProtectedRoute
-            allowedRoles={["ADMIN"]}
-          >
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
             <SettingsPage />
           </ProtectedRoute>
         }
@@ -135,28 +108,15 @@ function AppRoutes() {
 
       <Route
         path="/nuevo-objeto"
-        element={
-          <Navigate
-            to="/inventario/nuevo"
-            replace
-          />
-        }
+        element={<Navigate to="/inventario/nuevo" replace />}
       />
 
       <Route
         path="/nuevo-prestamo"
-        element={
-          <Navigate
-            to="/prestamos/nuevo"
-            replace
-          />
-        }
+        element={<Navigate to="/prestamos/nuevo" replace />}
       />
 
-      <Route
-        path="*"
-        element={<Navigate to="/" replace />}
-      />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
