@@ -1,10 +1,24 @@
 
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send } from "lucide-react";
+
+import {
+  ArrowLeft,
+  Send,
+  Package,
+  CheckCircle2,
+  AlertTriangle,
+  Minus,
+  Plus,
+  MapPin,
+  Boxes,
+  ClipboardList,
+} from "lucide-react";
 
 import { authRepository } from "../repositories/authRepository";
 import { inventoryStore } from "../services/inventoryStore";
+
+import "./NewLoanPage.css";
 
 function NewLoanPage() {
   const navigate = useNavigate();
@@ -13,8 +27,6 @@ function NewLoanPage() {
   const user = authRepository.getCurrentUser();
 
   const isAdmin = user?.role === "ADMIN";
-  const isProfesor = user?.role === "PROFESOR";
-  const isEstudiante = user?.role === "ESTUDIANTE";
 
   const selectedObject =
     (location.state as { object?: string } | null)?.object ?? "";
@@ -24,15 +36,33 @@ function NewLoanPage() {
   );
 
   const [course, setCourse] = useState(
-    isProfesor ? "Profesor" : ""
+    user?.role === "PROFESOR" ? "Profesor" : ""
   );
 
   const [object, setObject] = useState(selectedObject);
+  const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const availableItems = inventoryStore
-    .getItems()
-    .filter((item) => item.available > 0);
+  const items = inventoryStore.getItems();
+
+  const selectedItem = items.find(
+    (item) => item.name === object
+  );
+
+  const maxQuantity = selectedItem?.available ?? 0;
+
+  const changeObject = (value: string) => {
+    setObject(value);
+    setQuantity(1);
+  };
+
+  const changeQuantity = (value: number) => {
+    if (!Number.isInteger(value)) return;
+
+    setQuantity(
+      Math.max(1, Math.min(value, maxQuantity || 1))
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,12 +78,23 @@ function NewLoanPage() {
       return;
     }
 
-    const item = inventoryStore
+    const currentItem = inventoryStore
       .getItems()
-      .find((i) => i.name === object);
+      .find((item) => item.name === object);
 
-    if (!item || item.available < 1) {
-      alert("Este objeto no está disponible.");
+    if (!currentItem) {
+      alert("Selecciona un objeto válido.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > currentItem.available
+    ) {
+      alert(
+        `Selecciona una cantidad entre 1 y ${currentItem.available}.`
+      );
       return;
     }
 
@@ -61,14 +102,16 @@ function NewLoanPage() {
 
     const today = new Date();
     const dueDate = new Date(today);
+
     dueDate.setDate(dueDate.getDate() + 7);
 
     const loan = {
       id: Date.now(),
       person: student.trim(),
       course: course.trim(),
-      item: item.name,
-      code: item.code,
+      item: currentItem.name,
+      code: currentItem.code,
+      quantity,
       loanDate: today.toLocaleDateString("es-BO"),
       returnDate: dueDate.toLocaleDateString("es-BO"),
       status: "Pendiente" as const,
@@ -87,10 +130,13 @@ function NewLoanPage() {
 
       if (isAdmin) {
         inventoryStore.approveLoan(loan.id);
-        alert("Préstamo registrado correctamente.");
+
+        alert(
+          `Préstamo de ${quantity} unidad(es) registrado correctamente.`
+        );
       } else {
         alert(
-          "Solicitud enviada correctamente. El administrador podrá revisarla."
+          `Solicitud de ${quantity} unidad(es) enviada al administrador.`
         );
       }
 
@@ -99,137 +145,269 @@ function NewLoanPage() {
       alert(
         error instanceof Error
           ? error.message
-          : "No se pudo guardar la solicitud."
+          : "No se pudo registrar la solicitud."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    boxSizing: "border-box",
-    padding: "13px",
-    borderRadius: "10px",
-    border: "1px solid #dce3ee",
-    marginTop: "8px",
-    marginBottom: "20px",
-    fontSize: "15px",
-  };
-
   return (
-    <div
-      style={{
-        maxWidth: "700px",
-        margin: "auto",
-        padding: "40px 20px",
-      }}
-    >
+    <div className="new-loan-page">
+      {/* VOLVER */}
+
       <button
+        className="new-loan-back"
         onClick={() => navigate("/")}
-        style={{
-          border: "none",
-          background: "transparent",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 25,
-        }}
       >
         <ArrowLeft size={18} />
         Volver al inicio
       </button>
 
-      <div
-        style={{
-          background: "white",
-          padding: 35,
-          borderRadius: 20,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-        }}
+      {/* ENCABEZADO */}
+
+      <div className="new-loan-heading">
+        <div className="new-loan-heading-icon">
+          <ClipboardList size={28} />
+        </div>
+
+        <div>
+          <span className="new-loan-eyebrow">
+            COLEGIO DON BOSCO
+          </span>
+
+          <h1>
+            {isAdmin
+              ? "Registrar préstamo"
+              : "Solicitar préstamo"}
+          </h1>
+
+          <p>
+            {isAdmin
+              ? "Registra la entrega de materiales del inventario."
+              : "Selecciona los materiales y la cantidad que necesitas."}
+          </p>
+        </div>
+      </div>
+
+      <form
+        className="new-loan-card"
+        onSubmit={handleSubmit}
       >
-        <h1>
-          {isAdmin ? "Registrar préstamo" : "Solicitar préstamo"}
-        </h1>
+        {/* DATOS DEL SOLICITANTE */}
 
-        <p style={{ color: "#64748b", marginBottom: 30 }}>
-          {isAdmin
-            ? "Registra un préstamo para el colegio."
-            : "Solicita un objeto del inventario. El administrador revisará tu solicitud."}
-        </p>
+        <div className="new-loan-section-title">
+          <span>01</span>
+          <div>
+            <h2>Datos del solicitante</h2>
+            <p>Información de quien utilizará el material</p>
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <label>Nombre del solicitante</label>
+        <div className="new-loan-fields">
+          <div className="new-loan-field">
+            <label>Nombre completo</label>
 
-          <input
-            style={inputStyle}
-            value={student}
-            readOnly={!isAdmin}
-            onChange={(e) => setStudent(e.target.value)}
-            required
-          />
+            <input
+              value={student}
+              readOnly={!isAdmin}
+              onChange={(e) => setStudent(e.target.value)}
+              placeholder="Nombre completo"
+              required
+            />
+          </div>
 
-          <label>
-            {isProfesor
-              ? "Área"
-              : isEstudiante
-              ? "Curso"
-              : "Curso o área"}
-          </label>
+          <div className="new-loan-field">
+            <label>Curso o área</label>
 
-          <input
-            style={inputStyle}
-            value={course}
-            onChange={(e) => setCourse(e.target.value)}
-            placeholder="Ejemplo: 5° A"
-            required
-          />
+            <input
+              value={course}
+              onChange={(e) => setCourse(e.target.value)}
+              placeholder="Ejemplo: 5° A"
+              required
+            />
+          </div>
+        </div>
 
+        <div className="new-loan-divider"></div>
+
+        {/* SELECCIÓN DE OBJETO */}
+
+        <div className="new-loan-section-title">
+          <span>02</span>
+          <div>
+            <h2>Seleccionar material</h2>
+            <p>Consulta la disponibilidad del inventario</p>
+          </div>
+        </div>
+
+        <div className="new-loan-field">
           <label>Objeto solicitado</label>
 
-          <select
-            style={inputStyle}
-            value={object}
-            onChange={(e) => setObject(e.target.value)}
-            required
-          >
-            <option value="">Seleccionar objeto</option>
+          <div className="new-loan-select-wrapper">
+            <Package size={19} />
 
-            {availableItems.map((item) => (
-              <option key={item.id} value={item.name}>
-                {item.name} — {item.available} disponibles
+            <select
+              value={object}
+              onChange={(e) => changeObject(e.target.value)}
+              required
+            >
+              <option value="">
+                Selecciona un objeto del inventario
               </option>
-            ))}
-          </select>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "15px",
-              border: "none",
-              borderRadius: "10px",
-              background: "#1769df",
-              color: "white",
-              fontWeight: "bold",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-            }}
-          >
-            <Send size={18} />
-            {loading
-              ? "Guardando..."
-              : isAdmin
-              ? "Registrar préstamo"
-              : "Enviar solicitud"}
-          </button>
-        </form>
-      </div>
+              {items.map((item) => (
+                <option
+                  key={item.id}
+                  value={item.name}
+                  disabled={item.available === 0}
+                >
+                  {item.name} — {item.available > 0
+                    ? `${item.available} disponibles`
+                    : "Sin existencias"}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* INFORMACIÓN DEL OBJETO */}
+
+        {selectedItem && (
+          <div className="new-loan-object-card">
+            <div className="new-loan-object-top">
+              <div className="new-loan-object-identity">
+                <div className="new-loan-object-emoji">
+                  {selectedItem.emoji}
+                </div>
+
+                <div>
+                  <h3>{selectedItem.name}</h3>
+                  <p>
+                    {selectedItem.code} · {selectedItem.category}
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`new-loan-status ${
+                  selectedItem.available === 0
+                    ? "unavailable"
+                    : selectedItem.status === "Stock bajo"
+                    ? "low"
+                    : "available"
+                }`}
+              >
+                {selectedItem.available === 0 ? (
+                  <AlertTriangle size={14} />
+                ) : (
+                  <CheckCircle2 size={14} />
+                )}
+
+                {selectedItem.available === 0
+                  ? "No disponible"
+                  : selectedItem.status}
+              </span>
+            </div>
+
+            <div className="new-loan-object-details">
+              <div>
+                <Boxes size={17} />
+                <span>Existencias disponibles</span>
+                <strong>{selectedItem.available}</strong>
+              </div>
+
+              <div>
+                <MapPin size={17} />
+                <span>Ubicación</span>
+                <strong>{selectedItem.location}</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CANTIDAD */}
+
+        {selectedItem && selectedItem.available > 0 && (
+          <div className="new-loan-quantity-section">
+            <div>
+              <h3>Cantidad solicitada</h3>
+              <p>
+                Puedes solicitar entre 1 y{" "}
+                {selectedItem.available} unidades.
+              </p>
+            </div>
+
+            <div className="new-loan-stepper">
+              <button
+                type="button"
+                onClick={() => changeQuantity(quantity - 1)}
+                disabled={quantity <= 1}
+                aria-label="Disminuir cantidad"
+              >
+                <Minus size={18} />
+              </button>
+
+              <input
+                type="number"
+                min={1}
+                max={selectedItem.available}
+                step={1}
+                value={quantity}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  if (Number.isInteger(value)) {
+                    changeQuantity(value);
+                  }
+                }}
+                aria-label="Cantidad solicitada"
+              />
+
+              <button
+                type="button"
+                onClick={() => changeQuantity(quantity + 1)}
+                disabled={quantity >= selectedItem.available}
+                aria-label="Aumentar cantidad"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* MENSAJE */}
+
+        {!isAdmin && (
+          <div className="new-loan-notice">
+            <AlertTriangle size={19} />
+            <p>
+              Tu solicitud quedará pendiente hasta que el
+              administrador la apruebe. Las unidades se
+              descontarán del inventario al aprobarla.
+            </p>
+          </div>
+        )}
+
+        {/* BOTÓN GUARDAR */}
+
+        <button
+          className="new-loan-submit"
+          type="submit"
+          disabled={
+            loading ||
+            !selectedItem ||
+            selectedItem.available < 1
+          }
+        >
+          <Send size={19} />
+
+          {loading
+            ? "Guardando..."
+            : isAdmin
+            ? "Registrar préstamo"
+            : "Enviar solicitud"}
+        </button>
+      </form>
     </div>
   );
 }

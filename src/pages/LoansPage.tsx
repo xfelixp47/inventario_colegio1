@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Clock3,
   Handshake,
+  Package,
 } from "lucide-react";
 
 import { authRepository } from "../repositories/authRepository";
@@ -36,7 +37,9 @@ function LoansPage() {
   const [statusFilter, setStatusFilter] = useState("Todos");
 
   useEffect(() => {
-    const reload = () => setLoans(inventoryStore.getLoans());
+    const reload = () => {
+      setLoans(inventoryStore.getLoans());
+    };
 
     window.addEventListener("storage", reload);
     window.addEventListener("donbosco:changed", reload);
@@ -46,6 +49,8 @@ function LoansPage() {
       window.removeEventListener("donbosco:changed", reload);
     };
   }, []);
+
+  // FILTRAR PRÉSTAMOS
 
   const visibleLoans = useMemo(() => {
     return loans.filter((loan) => {
@@ -58,7 +63,8 @@ function LoansPage() {
       const matchesSearch =
         loan.person.toLowerCase().includes(text) ||
         loan.item.toLowerCase().includes(text) ||
-        loan.code.toLowerCase().includes(text);
+        loan.code.toLowerCase().includes(text) ||
+        loan.course.toLowerCase().includes(text);
 
       const matchesStatus =
         statusFilter === "Todos" ||
@@ -72,6 +78,8 @@ function LoansPage() {
     (loan) => isAdmin || loan.requesterId === user?.id
   );
 
+  // ESTADÍSTICAS
+
   const pending = ownLoans.filter(
     (loan) => loan.status === "Pendiente"
   ).length;
@@ -84,46 +92,83 @@ function LoansPage() {
     (loan) => loan.status === "Devuelto"
   ).length;
 
+  // APROBAR PRÉSTAMO
+
   const approveLoan = (id: number) => {
     if (!isAdmin) return;
 
     try {
       inventoryStore.approveLoan(id);
+
       setLoans(inventoryStore.getLoans());
-      alert("Solicitud aprobada correctamente.");
+
+      alert(
+        "Solicitud aprobada correctamente. El inventario fue actualizado."
+      );
     } catch (error) {
       alert(
         error instanceof Error
           ? error.message
-          : "No se pudo aprobar."
+          : "No se pudo aprobar la solicitud."
       );
     }
   };
 
+  // RECHAZAR PRÉSTAMO
+
   const rejectLoan = (id: number) => {
     if (!isAdmin) return;
 
-    if (!confirm("¿Seguro que deseas rechazar la solicitud?")) {
-      return;
-    }
+    const confirmReject = window.confirm(
+      "¿Seguro que deseas rechazar esta solicitud?"
+    );
+
+    if (!confirmReject) return;
 
     inventoryStore.rejectLoan(id);
+
     setLoans(inventoryStore.getLoans());
   };
+
+  // REGISTRAR DEVOLUCIÓN
 
   const returnLoan = (id: number) => {
     if (!isAdmin) return;
 
-    if (!confirm("¿Confirmas la devolución del objeto?")) {
-      return;
-    }
+    const confirmReturn = window.confirm(
+      "¿Confirmas que se devolvieron todas las unidades de este préstamo?"
+    );
+
+    if (!confirmReturn) return;
 
     inventoryStore.returnLoan(id);
+
     setLoans(inventoryStore.getLoans());
+
+    alert("Devolución registrada correctamente.");
   };
+
+  // ESTILO DE BOTONES
+
+  const actionButton = (
+    color: string
+  ): React.CSSProperties => ({
+    background: color,
+    color: "white",
+    border: "none",
+    borderRadius: 8,
+    padding: "9px 12px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    cursor: "pointer",
+    fontWeight: 600,
+  });
 
   return (
     <div className="loans-page">
+      {/* BOTÓN VOLVER */}
+
       <button
         className="loans-back-button"
         onClick={() => navigate("/")}
@@ -132,6 +177,8 @@ function LoansPage() {
         Volver al inicio
       </button>
 
+      {/* ENCABEZADO */}
+
       <header className="loans-header">
         <div>
           <span className="loans-eyebrow">
@@ -139,13 +186,15 @@ function LoansPage() {
           </span>
 
           <h1>
-            {isAdmin ? "Administrar préstamos" : "Mis préstamos"}
+            {isAdmin
+              ? "Administrar préstamos"
+              : "Mis préstamos"}
           </h1>
 
           <p>
             {isAdmin
-              ? "Revisa y administra las solicitudes del Colegio Don Bosco."
-              : "Consulta el estado de tus solicitudes."}
+              ? "Revisa, aprueba y administra las solicitudes del Colegio Don Bosco."
+              : "Consulta tus solicitudes y el estado de los materiales."}
           </p>
         </div>
 
@@ -154,9 +203,14 @@ function LoansPage() {
           onClick={() => navigate("/prestamos/nuevo")}
         >
           <Plus size={19} />
-          {isAdmin ? "Nuevo préstamo" : "Solicitar objeto"}
+
+          {isAdmin
+            ? "Nuevo préstamo"
+            : "Solicitar objeto"}
         </button>
       </header>
+
+      {/* ESTADÍSTICAS */}
 
       <section className="loans-stats">
         <div className="loan-stat-card">
@@ -208,6 +262,8 @@ function LoansPage() {
         </div>
       </section>
 
+      {/* BUSCADOR Y FILTROS */}
+
       <div
         style={{
           display: "flex",
@@ -250,18 +306,16 @@ function LoansPage() {
             border: "1px solid #dbe2ea",
           }}
         >
-          {[
-            "Todos",
-            "Pendiente",
-            "Activo",
-            "Devuelto",
-            "Vencido",
-            "Rechazado",
-          ].map((status) => (
-            <option key={status}>{status}</option>
-          ))}
+          <option value="Todos">Todos los estados</option>
+          <option value="Pendiente">Pendientes</option>
+          <option value="Activo">Activos</option>
+          <option value="Devuelto">Devueltos</option>
+          <option value="Vencido">Vencidos</option>
+          <option value="Rechazado">Rechazados</option>
         </select>
       </div>
+
+      {/* TABLA DE PRÉSTAMOS */}
 
       <div
         style={{
@@ -282,7 +336,7 @@ function LoansPage() {
             <tr>
               {[
                 "Solicitante",
-                "Objeto",
+                "Objeto y cantidad",
                 "Fecha",
                 "Devolución",
                 "Estado",
@@ -293,6 +347,7 @@ function LoansPage() {
                   style={{
                     padding: 14,
                     borderBottom: "1px solid #e5e7eb",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {title}
@@ -304,22 +359,92 @@ function LoansPage() {
           <tbody>
             {visibleLoans.map((loan) => (
               <tr key={loan.id}>
+                {/* SOLICITANTE */}
+
                 <td style={{ padding: 14 }}>
                   <strong>{loan.person}</strong>
-                  <div style={{ color: "#64748b" }}>
+
+                  <div style={{ color: "#64748b", marginTop: 5 }}>
                     {loan.course}
                   </div>
                 </td>
 
+                {/* OBJETO Y CANTIDAD */}
+
                 <td style={{ padding: 14 }}>
-                  <strong>{loan.item}</strong>
-                  <div style={{ color: "#64748b" }}>
-                    {loan.code}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 39,
+                        height: 39,
+                        borderRadius: 10,
+                        background: "#eaf2ff",
+                        color: "#1769df",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Package size={19} />
+                    </div>
+
+                    <div>
+                      <strong>{loan.item}</strong>
+
+                      <div
+                        style={{
+                          color: "#64748b",
+                          fontSize: 12,
+                          marginTop: 4,
+                        }}
+                      >
+                        {loan.code}
+                      </div>
+
+                      <div
+                        style={{
+                          color: "#1769df",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          marginTop: 6,
+                        }}
+                      >
+                        Cantidad: {loan.quantity ?? 1} unidad(es)
+                      </div>
+                    </div>
                   </div>
                 </td>
 
-                <td style={{ padding: 14 }}>{loan.loanDate}</td>
-                <td style={{ padding: 14 }}>{loan.returnDate}</td>
+                {/* FECHA */}
+
+                <td
+                  style={{
+                    padding: 14,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {loan.loanDate}
+                </td>
+
+                {/* DEVOLUCIÓN */}
+
+                <td
+                  style={{
+                    padding: 14,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {loan.returnDate}
+                </td>
+
+                {/* ESTADO */}
 
                 <td style={{ padding: 14 }}>
                   <span
@@ -327,6 +452,8 @@ function LoansPage() {
                       padding: "7px 11px",
                       borderRadius: 20,
                       fontWeight: 600,
+                      fontSize: 12,
+                      whiteSpace: "nowrap",
                       background:
                         loan.status === "Pendiente"
                           ? "#fef3c7"
@@ -337,11 +464,23 @@ function LoansPage() {
                           : loan.status === "Rechazado"
                           ? "#fee2e2"
                           : "#fef3c7",
+                      color:
+                        loan.status === "Pendiente"
+                          ? "#92400e"
+                          : loan.status === "Activo"
+                          ? "#1d4ed8"
+                          : loan.status === "Devuelto"
+                          ? "#15803d"
+                          : loan.status === "Rechazado"
+                          ? "#b91c1c"
+                          : "#92400e",
                     }}
                   >
                     {loan.status}
                   </span>
                 </td>
+
+                {/* ACCIONES */}
 
                 <td style={{ padding: 14 }}>
                   {isAdmin && loan.status === "Pendiente" && (
@@ -367,7 +506,9 @@ function LoansPage() {
                   )}
 
                   {isAdmin &&
-                    ["Activo", "Vencido"].includes(loan.status) && (
+                    ["Activo", "Vencido"].includes(
+                      loan.status
+                    ) && (
                       <button
                         onClick={() => returnLoan(loan.id)}
                         style={actionButton("#2563eb")}
@@ -375,6 +516,15 @@ function LoansPage() {
                         <RotateCcw size={16} />
                         Devolver
                       </button>
+                    )}
+
+                  {isAdmin &&
+                    ["Devuelto", "Rechazado"].includes(
+                      loan.status
+                    ) && (
+                      <span style={{ color: "#64748b" }}>
+                        Finalizado
+                      </span>
                     )}
 
                   {!isAdmin && (
@@ -396,6 +546,8 @@ function LoansPage() {
           </tbody>
         </table>
 
+        {/* SIN SOLICITUDES */}
+
         {visibleLoans.length === 0 && (
           <div
             style={{
@@ -404,7 +556,10 @@ function LoansPage() {
               color: "#64748b",
             }}
           >
-            <Handshake size={40} style={{ margin: "auto" }} />
+            <Handshake
+              size={40}
+              style={{ margin: "auto" }}
+            />
 
             <h3>No hay solicitudes registradas</h3>
 
@@ -418,21 +573,6 @@ function LoansPage() {
       </div>
     </div>
   );
-}
-
-function actionButton(color: string): React.CSSProperties {
-  return {
-    background: color,
-    color: "white",
-    border: "none",
-    borderRadius: 8,
-    padding: "9px 12px",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 7,
-    cursor: "pointer",
-    fontWeight: 600,
-  };
 }
 
 export default LoansPage;

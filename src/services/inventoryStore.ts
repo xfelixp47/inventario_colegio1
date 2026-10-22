@@ -1,7 +1,7 @@
 
 import { storageService } from "./storageService";
 
-export interface InventoryItem {
+export type InventoryItem = {
   id: number;
   name: string;
   code: string;
@@ -11,14 +11,15 @@ export interface InventoryItem {
   status: "Disponible" | "Prestado" | "Stock bajo";
   location: string;
   emoji: string;
-}
+};
 
-export interface LoanRecord {
+export type LoanRecord = {
   id: number;
   person: string;
   course: string;
   item: string;
   code: string;
+  quantity?: number;
   loanDate: string;
   returnDate: string;
   status:
@@ -29,7 +30,7 @@ export interface LoanRecord {
     | "Rechazado";
   initials: string;
   requesterId?: string;
-}
+};
 
 const ITEMS_KEY = "donbosco_inventory_v2";
 const LOANS_KEY = "donbosco_loans_v2";
@@ -104,12 +105,19 @@ const initialItems: InventoryItem[] = [
 ];
 
 function updateStatus(item: InventoryItem): InventoryItem {
+  const available = Math.max(
+    0,
+    Math.min(item.quantity, item.available)
+  );
+
   return {
     ...item,
+    available,
     status:
-      item.available === 0
+      available === 0
         ? "Prestado"
-        : item.available <= Math.max(1, Math.floor(item.quantity * 0.2))
+        : available <=
+          Math.max(1, Math.floor(item.quantity * 0.2))
         ? "Stock bajo"
         : "Disponible",
   };
@@ -119,13 +127,24 @@ function notify() {
   window.dispatchEvent(new Event("donbosco:changed"));
 }
 
+function loanQuantity(loan: LoanRecord): number {
+  return loan.quantity ?? 1;
+}
+
 export const inventoryStore = {
   getItems(): InventoryItem[] {
-    return storageService.get<InventoryItem[]>(ITEMS_KEY) ?? initialItems;
+    const saved =
+      storageService.get<InventoryItem[]>(ITEMS_KEY);
+
+    return (saved ?? initialItems).map(updateStatus);
   },
 
-  setItems(items: InventoryItem[]) {
-    storageService.set(ITEMS_KEY, items.map(updateStatus));
+  setItems(items: InventoryItem[]): void {
+    storageService.set(
+      ITEMS_KEY,
+      items.map(updateStatus)
+    );
+
     notify();
   },
 
@@ -133,77 +152,141 @@ export const inventoryStore = {
     return storageService.get<LoanRecord[]>(LOANS_KEY) ?? [];
   },
 
-  setLoans(loans: LoanRecord[]) {
+  setLoans(loans: LoanRecord[]): void {
     storageService.set(LOANS_KEY, loans);
     notify();
   },
 
-  requestLoan(loan: LoanRecord) {
-    const item = this.getItems().find((i) => i.code === loan.code);
+  // ENVIAR SOLICITUD
 
-    if (!item || item.available < 1) {
-      throw new Error("No hay unidades disponibles.");
+  requestLoan(loan: LoanRecord): void {
+    const quantity = loanQuantity(loan);
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error("La cantidad solicitada no es válida.");
     }
 
-    this.setLoans([...this.getLoans(), loan]);
+    const item = this.getItems().find(
+      (i) => i.code === loan.code
+    );
+
+    if (!item) {
+      throw new Error("No se encontró el objeto.");
+    }
+
+    if (quantity > item.available) {
+      throw new Error(
+        `Solo hay ${item.available} unidades disponibles.`
+      );
+    }
+
+    this.setLoans([
+      ...this.getLoans(),
+      {
+        ...loan,
+        quantity,
+        status: "Pendiente",
+      },
+    ]);
   },
 
-  approveLoan(id: number) {
-    const loan = this.getLoans().find((l) => l.id === id);
+  // APROBAR SOLICITUD
+
+  approveLoan(id: number): void {
+    const loans = this.getLoans();
+
+    const loan = loans.find(
+      (item) => item.id === id
+    );
 
     if (!loan || loan.status !== "Pendiente") return;
 
-    const items = this.getItems();
-    const item = items.find((i) => i.code === loan.code);
+    const quantity = loanQuantity(loan);
 
-    if (!item || item.available < 1) {
-      throw new Error("No hay unidades disponibles.");
+    const items = this.getItems();
+
+    const item = items.find(
+      (i) => i.code === loan.code
+    );
+
+    if (!item || item.available < quantity) {
+      throw new Error(
+        "No hay suficientes unidades para aprobar este préstamo."
+      );
     }
 
     this.setItems(
       items.map((i) =>
         i.code === loan.code
-          ? { ...i, available: i.available - 1 }
-          : i
-      )
-    );
-
-    this.setLoans(
-      this.getLoans().map((l) =>
-        l.id === id ? { ...l, status: "Activo" } : l
-      )
-    );
-  },
-
-  rejectLoan(id: number) {
-    this.setLoans(
-      this.getLoans().map((l) =>
-        l.id === id && l.status === "Pendiente"
-          ? { ...l, status: "Rechazado" }
-          : l
-      )
-    );
-  },
-
-  returnLoan(id: number) {
-    const loan = this.getLoans().find((l) => l.id === id);
-
-    if (!loan || !["Activo", "Vencido"].includes(loan.status)) return;
-
-    this.setItems(
-      this.getItems().map((i) =>
-        i.code === loan.code
           ? {
               ...i,
-              available: Math.min(i.quantity, i.available + 1),
+              available: i.available - quantity,
             }
           : i
       )
     );
 
     this.setLoans(
-      this.getLoans().map((l) =>
-        l.id === id ? { ...l, status: "Devuelto" } : l
+      loans.map((l) =>
+        l.id === id
+          ? { ...l, status: "Activo" }
+          : l
+      )
+    );
+  },
+
+  // RECHAZAR SOLICITUD
+
+  rejectLoan(id: number): void {
+    this.setLoans(
+      this.getLoans().map((loan) =>
+        loan.id === id && loan.status === "Pendiente"
+          ? {
+              ...loan,
+              status: "Rechazado",
+            }
+          : loan
+      )
+    );
+  },
+
+  // REGISTRAR DEVOLUCIÓN
+
+  returnLoan(id: number): void {
+    const loans = this.getLoans();
+
+    const loan = loans.find(
+      (l) => l.id === id
+    );
+
+    if (
+      !loan ||
+      !["Activo", "Vencido"].includes(loan.status)
+    ) {
+      return;
+    }
+
+    const quantity = loanQuantity(loan);
+
+    this.setItems(
+      this.getItems().map((item) =>
+        item.code === loan.code
+          ? {
+              ...item,
+              available: Math.min(
+                item.quantity,
+                item.available + quantity
+              ),
+            }
+          : item
+      )
+    );
+
+    this.setLoans(
+      loans.map((l) =>
+        l.id === id
+          ? { ...l, status: "Devuelto" }
+          : l
       )
     );
   },
