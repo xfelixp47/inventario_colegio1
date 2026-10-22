@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -10,29 +11,28 @@ import "./LoginPage.css";
 
 function LoginPage() {
   const navigate = useNavigate();
-
   const [error, setError] = useState("");
 
-  const handleLogin = (credentials: LoginCredentials) => {
+  const handleLogin = async (credentials: LoginCredentials) => {
     setError("");
 
-    const user = authRepository.login(credentials);
+    try {
+      const user = await authRepository.login(credentials);
 
-    if (!user) {
-      setError("El carnet o la contraseña son incorrectos.");
-      return;
+      if (!user) {
+        setError("El carnet o la contraseña son incorrectos.");
+        return;
+      }
+
+      navigate("/", { replace: true });
+    } catch {
+      setError("Ocurrió un error al iniciar sesión.");
     }
-
-    // TODOS entran al mismo panel principal
-    navigate("/", { replace: true });
   };
 
   return (
     <main className="login-page">
-      <LoginForm
-        error={error}
-        onSubmit={handleLogin}
-      />
+      <LoginForm error={error} onSubmit={handleLogin} />
     </main>
   );
 }

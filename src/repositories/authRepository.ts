@@ -1,31 +1,42 @@
+
 import initialUsers from "../data/users.json";
+
 import { storageService } from "../services/storageService";
+import { userService } from "../services/userService";
+
 import type {
   LoginCredentials,
   User,
   UserRecord,
 } from "../types/auth";
 
-
 const SESSION_KEY = "app_session";
 
-
-const users = initialUsers as UserRecord[];
-
+const defaultUsers = initialUsers as UserRecord[];
 
 export const authRepository = {
-  login(credentials: LoginCredentials): User | null {
-    const foundUser = users.find(
-      (user) =>
-        user.carnet === credentials.carnet &&
-        user.password === credentials.password
+  async login(credentials: LoginCredentials): Promise<User | null> {
+    const createdUser = await userService.verifyUser(
+      credentials.carnet,
+      credentials.password
     );
 
-
-    if (!foundUser) {
-      return null;
+    if (createdUser) {
+      storageService.set<User>(SESSION_KEY, createdUser);
+      return createdUser;
     }
 
+    // Cuentas originales del proyecto
+    const foundUser = defaultUsers.find(
+      (user) =>
+        user.carnet === credentials.carnet &&
+        user.password === credentials.password &&
+        !userService
+          .getUsers()
+          .some((created) => created.carnet === user.carnet)
+    );
+
+    if (!foundUser) return null;
 
     const sessionUser: User = {
       id: foundUser.id,
@@ -34,23 +45,17 @@ export const authRepository = {
       role: foundUser.role,
     };
 
-
     storageService.set<User>(SESSION_KEY, sessionUser);
-
-
     return sessionUser;
   },
-
 
   logout(): void {
     storageService.remove(SESSION_KEY);
   },
 
-
   getCurrentUser(): User | null {
     return storageService.get<User>(SESSION_KEY);
   },
-
 
   isAuthenticated(): boolean {
     return this.getCurrentUser() !== null;

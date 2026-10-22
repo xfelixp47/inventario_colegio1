@@ -1,8 +1,5 @@
-import {
-  useMemo,
-  useState,
-} from "react";
 
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -16,279 +13,255 @@ import {
   Trash2,
   X,
   Save,
-  Filter,
-  ChevronDown,
   KeyRound,
-  IdCard,
 } from "lucide-react";
 
 import initialUsers from "../data/users.json";
+import { userService } from "../services/userService";
+import { authRepository } from "../repositories/authRepository";
+
+import type { UserRole } from "../types/auth";
 
 import "./UsersPage.css";
 
 type UserItem = {
-  id: number | string;
+  id: string;
   name: string;
   carnet: string;
-  role:
-    | "ADMIN"
-    | "PROFESOR"
-    | "ESTUDIANTE";
-  password?: string;
+  role: UserRole;
 };
+
+const originalUsers: UserItem[] = initialUsers.map((user) => ({
+  id: String(user.id),
+  name: user.name,
+  carnet: user.carnet,
+  role: user.role as UserRole,
+}));
 
 function UsersPage() {
   const navigate = useNavigate();
 
-  const [search, setSearch] =
-    useState("");
+  const [users, setUsers] = useState<UserItem[]>(() => [
+    ...originalUsers,
+    ...userService.getUsers(),
+  ]);
 
-  const [
-    roleFilter,
-    setRoleFilter,
-  ] = useState("Todos");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("Todos");
 
-  const [users, setUsers] =
-    useState<UserItem[]>(
-      initialUsers as UserItem[]
-    );
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [
-    showModal,
-    setShowModal,
-  ] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCarnet, setNewCarnet] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
-  const [newName, setNewName] =
-    useState("");
+  const [newRole, setNewRole] = useState<UserRole>("ESTUDIANTE");
 
-  const [
-    newCarnet,
-    setNewCarnet,
-  ] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [
-    newPassword,
-    setNewPassword,
-  ] = useState("");
+  const isAdmin =
+    authRepository.getCurrentUser()?.role === "ADMIN";
 
-  const [
-    newRole,
-    setNewRole,
-  ] =
-    useState<
-      | "ADMIN"
-      | "PROFESOR"
-      | "ESTUDIANTE"
-    >("ESTUDIANTE");
-
-  const filteredUsers =
-    useMemo(() => {
-      const text =
-        search.toLowerCase();
-
-      return users.filter(
-        (user) => {
-          const matchesSearch =
-            user.name
-              .toLowerCase()
-              .includes(text) ||
-            user.carnet
-              .toLowerCase()
-              .includes(text) ||
-            user.role
-              .toLowerCase()
-              .includes(text);
-
-          const matchesRole =
-            roleFilter ===
-              "Todos" ||
-            user.role ===
-              roleFilter;
-
-          return (
-            matchesSearch &&
-            matchesRole
-          );
-        }
-      );
-    }, [
-      users,
-      search,
-      roleFilter,
+  const refreshUsers = () => {
+    setUsers([
+      ...originalUsers,
+      ...userService.getUsers(),
     ]);
+  };
 
-  const adminCount =
-    users.filter(
-      (user) =>
-        user.role === "ADMIN"
-    ).length;
+  const filteredUsers = useMemo(() => {
+    const text = search.toLowerCase();
 
-  const teacherCount =
-    users.filter(
-      (user) =>
-        user.role ===
-        "PROFESOR"
-    ).length;
+    return users.filter((user) => {
+      const matchesSearch =
+        user.name.toLowerCase().includes(text) ||
+        user.carnet.toLowerCase().includes(text) ||
+        user.role.toLowerCase().includes(text);
 
-  const studentCount =
-    users.filter(
-      (user) =>
-        user.role ===
-        "ESTUDIANTE"
-    ).length;
+      const matchesRole =
+        roleFilter === "Todos" ||
+        user.role === roleFilter;
 
-  const handleCreateUser = (
+      return matchesSearch && matchesRole;
+    });
+  }, [users, search, roleFilter]);
+
+  const adminCount = users.filter(
+    (user) => user.role === "ADMIN"
+  ).length;
+
+  const teacherCount = users.filter(
+    (user) => user.role === "PROFESOR"
+  ).length;
+
+  const studentCount = users.filter(
+    (user) => user.role === "ESTUDIANTE"
+  ).length;
+
+  const resetForm = () => {
+    setNewName("");
+    setNewCarnet("");
+    setNewPassword("");
+    setNewRole("ESTUDIANTE");
+    setEditingId(null);
+    setShowModal(false);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setShowModal(true);
+  };
+
+  const openEdit = (user: UserItem) => {
+    const isCreated = userService
+      .getUsers()
+      .some((item) => item.id === user.id);
+
+    if (!isCreated) {
+      alert(
+        "Esta es una cuenta original del proyecto. " +
+        "Puedes modificar las cuentas creadas desde este panel."
+      );
+      return;
+    }
+
+    setEditingId(user.id);
+    setNewName(user.name);
+    setNewCarnet(user.carnet);
+    setNewPassword("");
+    setNewRole(user.role);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
   ) => {
     event.preventDefault();
 
-    if (
-      !newName.trim() ||
-      !newCarnet.trim() ||
-      !newPassword.trim()
-    ) {
+    if (!isAdmin || saving) return;
+
+    if (!newName.trim() || !newCarnet.trim()) {
+      alert("Completa todos los campos.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      if (editingId) {
+        userService.updateUser(editingId, {
+          name: newName,
+          role: newRole,
+        });
+
+        if (newPassword.trim()) {
+          await userService.changePassword(
+            editingId,
+            newPassword
+          );
+        }
+
+        alert("Usuario actualizado correctamente.");
+      } else {
+        if (!newPassword.trim()) {
+          alert("Debes introducir una contraseña.");
+          return;
+        }
+
+        if (
+          users.some(
+            (user) => user.carnet === newCarnet.trim()
+          )
+        ) {
+          alert("Ya existe un usuario con ese carnet.");
+          return;
+        }
+
+        await userService.createUser({
+          name: newName,
+          carnet: newCarnet,
+          password: newPassword,
+          role: newRole,
+        });
+
+        alert(
+          "Usuario registrado correctamente. Ya puede iniciar sesión."
+        );
+      }
+
+      refreshUsers();
+      resetForm();
+    } catch (error) {
       alert(
-        "Completa todos los campos."
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el usuario."
       );
-
-      return;
+    } finally {
+      setSaving(false);
     }
+  };
 
-    const carnetExists =
-      users.some(
-        (user) =>
-          user.carnet ===
-          newCarnet.trim()
-      );
+  const deleteUser = (user: UserItem) => {
+    if (!isAdmin) return;
 
-    if (carnetExists) {
+    const isCreated = userService
+      .getUsers()
+      .some((item) => item.id === user.id);
+
+    if (!isCreated) {
       alert(
-        "Ya existe un usuario con ese carnet."
+        "No puedes eliminar las cuentas originales desde este panel."
       );
-
       return;
     }
 
-    const newUser: UserItem =
-      {
-        id: Date.now(),
-        name: newName.trim(),
-        carnet:
-          newCarnet.trim(),
-        password:
-          newPassword,
-        role: newRole,
-      };
-
-    setUsers(
-      (currentUsers) => [
-        ...currentUsers,
-        newUser,
-      ]
-    );
-
-    setNewName("");
-    setNewCarnet("");
-    setNewPassword("");
-    setNewRole(
-      "ESTUDIANTE"
-    );
-
-    setShowModal(false);
-  };
-
-  const editUser = (
-    user: UserItem
-  ) => {
-    const newUserName =
-      window.prompt(
-        "Nuevo nombre del usuario:",
-        user.name
-      );
-
     if (
-      !newUserName?.trim()
-    )
+      !window.confirm(
+        `¿Seguro que quieres eliminar a "${user.name}"?`
+      )
+    ) {
       return;
-
-    setUsers(
-      (currentUsers) =>
-        currentUsers.map(
-          (currentUser) =>
-            currentUser.id ===
-            user.id
-              ? {
-                  ...currentUser,
-                  name: newUserName.trim(),
-                }
-              : currentUser
-        )
-    );
-  };
-
-  const deleteUser = (
-    user: UserItem
-  ) => {
-    const confirmDelete =
-      window.confirm(
-        `¿Seguro que quieres eliminar al usuario "${user.name}"?`
-      );
-
-    if (!confirmDelete) return;
-
-    setUsers(
-      (currentUsers) =>
-        currentUsers.filter(
-          (currentUser) =>
-            currentUser.id !==
-            user.id
-        )
-    );
-  };
-
-  const getInitials = (
-    name: string
-  ) => {
-    const words =
-      name.trim().split(" ");
-
-    if (
-      words.length === 1
-    ) {
-      return words[0]
-        .substring(0, 2)
-        .toUpperCase();
     }
 
-    return (
-      words[0].charAt(0) +
-      words[1].charAt(0)
-    ).toUpperCase();
+    userService.deleteUser(user.id);
+    refreshUsers();
+
+    alert("Usuario eliminado correctamente.");
   };
 
-  const formatRole = (
-    role: UserItem["role"]
-  ) => {
-    if (role === "ADMIN") {
-      return "Administrador";
-    }
+  const getInitials = (name: string) => {
+    return name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase();
+  };
 
-    if (
-      role === "PROFESOR"
-    ) {
-      return "Profesor";
-    }
-
+  const formatRole = (role: UserRole) => {
+    if (role === "ADMIN") return "Administrador";
+    if (role === "PROFESOR") return "Profesor";
     return "Estudiante";
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "12px",
+    border: "1px solid #dbe2ea",
+    borderRadius: "10px",
+    boxSizing: "border-box",
+    marginTop: "7px",
+    marginBottom: "17px",
   };
 
   return (
     <div className="users-page">
       <button
         className="users-back-button"
-        onClick={() =>
-          navigate("/")
-        }
+        onClick={() => navigate("/")}
       >
         <ArrowLeft size={18} />
         Volver al inicio
@@ -303,538 +276,376 @@ function UsersPage() {
           <h1>Usuarios</h1>
 
           <p>
-            Gestiona administradores,
-            profesores y estudiantes
-            que pueden acceder al
-            sistema de inventario.
+            Administra las cuentas de administradores,
+            profesores y estudiantes del Colegio Don Bosco.
           </p>
         </div>
 
         <button
-          className="new-user-button"
-          onClick={() =>
-            setShowModal(true)
-          }
+          onClick={openCreate}
+          disabled={!isAdmin}
+          style={buttonStyle("#1769df")}
         >
-          <UserPlus size={19} />
-          Nuevo usuario
+          <UserPlus size={18} />
+          Agregar usuario
         </button>
       </header>
 
-      <section className="users-stats">
-        <div className="user-stat-card">
-          <div className="user-stat-icon gold">
-            <ShieldCheck
-              size={24}
-            />
-          </div>
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 15,
+          margin: "25px 0",
+        }}
+      >
+        <StatCard
+          title="Total usuarios"
+          value={users.length}
+          icon={<Users size={24} color="#1769df" />}
+        />
 
-          <div>
-            <span>
-              Administradores
-            </span>
+        <StatCard
+          title="Administradores"
+          value={adminCount}
+          icon={<ShieldCheck size={24} color="#7c3aed" />}
+        />
 
-            <strong>
-              {adminCount}
-            </strong>
+        <StatCard
+          title="Profesores"
+          value={teacherCount}
+          icon={<UserRound size={24} color="#16a34a" />}
+        />
 
-            <small>
-              Acceso completo
-            </small>
-          </div>
-        </div>
-
-        <div className="user-stat-card">
-          <div className="user-stat-icon blue">
-            <UserRound
-              size={24}
-            />
-          </div>
-
-          <div>
-            <span>Profesores</span>
-
-            <strong>
-              {teacherCount}
-            </strong>
-
-            <small>
-              Consulta y solicitudes
-            </small>
-          </div>
-        </div>
-
-        <div className="user-stat-card">
-          <div className="user-stat-icon green">
-            <Users size={24} />
-          </div>
-
-          <div>
-            <span>Estudiantes</span>
-
-            <strong>
-              {studentCount}
-            </strong>
-
-            <small>
-              Acceso limitado
-            </small>
-          </div>
-        </div>
+        <StatCard
+          title="Estudiantes"
+          value={studentCount}
+          icon={<Users size={24} color="#f59e0b" />}
+        />
       </section>
 
-      <section className="users-panel">
-        <div className="users-panel-header">
-          <div>
-            <h2>
-              Usuarios registrados
-            </h2>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 12,
+          margin: "25px 0",
+        }}
+      >
+        <div style={{ flex: 1, position: "relative" }}>
+          <Search
+            size={18}
+            style={{
+              position: "absolute",
+              top: 13,
+              left: 12,
+              color: "#64748b",
+            }}
+          />
 
-            <p>
-              {
-                filteredUsers.length
-              }{" "}
-              usuarios encontrados
-            </p>
-          </div>
+          <input
+            placeholder="Buscar usuarios..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              ...inputStyle,
+              paddingLeft: 40,
+              margin: 0,
+            }}
+          />
         </div>
 
-        <div className="users-toolbar">
-          <div className="users-search">
-            <Search size={19} />
+        <select
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+          style={{
+            padding: 12,
+            border: "1px solid #dbe2ea",
+            borderRadius: 10,
+          }}
+        >
+          <option value="Todos">Todos los roles</option>
+          <option value="ADMIN">Administradores</option>
+          <option value="PROFESOR">Profesores</option>
+          <option value="ESTUDIANTE">Estudiantes</option>
+        </select>
+      </div>
 
-            <input
-              type="text"
-              placeholder="Buscar por nombre, carnet o rol..."
-              value={search}
-              onChange={(e) =>
-                setSearch(
-                  e.target.value
-                )
-              }
-            />
-          </div>
+      <div
+        style={{
+          background: "white",
+          borderRadius: 18,
+          padding: 20,
+          overflowX: "auto",
+        }}
+      >
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            textAlign: "left",
+          }}
+        >
+          <thead>
+            <tr>
+              {[
+                "Usuario",
+                "Carnet",
+                "Rol",
+                "Acciones",
+              ].map((title) => (
+                <th
+                  key={title}
+                  style={{
+                    padding: 15,
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  {title}
+                </th>
+              ))}
+            </tr>
+          </thead>
 
-          <div className="users-filter">
-            <Filter size={17} />
+          <tbody>
+            {filteredUsers.map((user) => (
+              <tr key={user.id}>
+                <td
+                  style={{
+                    padding: 15,
+                    borderBottom: "1px solid #f1f5f9",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: "50%",
+                        background: "#dbeafe",
+                        color: "#1d4ed8",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {getInitials(user.name)}
+                    </div>
 
-            <select
-              value={roleFilter}
-              onChange={(e) =>
-                setRoleFilter(
-                  e.target.value
-                )
-              }
-            >
-              <option value="Todos">
-                Todos los roles
-              </option>
+                    <strong>{user.name}</strong>
+                  </div>
+                </td>
 
-              <option value="ADMIN">
-                Administradores
-              </option>
+                <td style={{ padding: 15 }}>
+                  {user.carnet}
+                </td>
 
-              <option value="PROFESOR">
-                Profesores
-              </option>
+                <td style={{ padding: 15 }}>
+                  <span
+                    style={{
+                      padding: "7px 12px",
+                      borderRadius: 20,
+                      fontWeight: 600,
+                      background:
+                        user.role === "ADMIN"
+                          ? "#ede9fe"
+                          : user.role === "PROFESOR"
+                          ? "#dcfce7"
+                          : "#dbeafe",
+                    }}
+                  >
+                    {formatRole(user.role)}
+                  </span>
+                </td>
 
-              <option value="ESTUDIANTE">
-                Estudiantes
-              </option>
-            </select>
+                <td style={{ padding: 15 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      title="Editar usuario"
+                      onClick={() => openEdit(user)}
+                      style={buttonStyle("#2563eb")}
+                    >
+                      <Pencil size={16} />
+                    </button>
 
-            <ChevronDown
-              size={16}
-            />
-          </div>
-        </div>
-
-        <div className="users-table-wrapper">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>USUARIO</th>
-                <th>CARNET</th>
-                <th>ROL</th>
-                <th>ESTADO</th>
-                <th>ACCIONES</th>
+                    <button
+                      title="Eliminar usuario"
+                      onClick={() => deleteUser(user)}
+                      style={buttonStyle("#dc2626")}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
               </tr>
-            </thead>
+            ))}
+          </tbody>
+        </table>
 
-            <tbody>
-              {filteredUsers.map(
-                (user, index) => (
-                  <tr key={user.id}>
-                    <td>
-                      <div className="registered-user">
-                        <div
-                          className={`registered-user-avatar user-avatar-${
-                            (index %
-                              4) +
-                            1
-                          }`}
-                        >
-                          {getInitials(
-                            user.name
-                          )}
-                        </div>
-
-                        <div>
-                          <strong>
-                            {
-                              user.name
-                            }
-                          </strong>
-
-                          <span>
-                            Usuario #
-                            {String(
-                              user.id
-                            ).slice(
-                              -4
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <div className="user-carnet">
-                        <IdCard
-                          size={15}
-                        />
-
-                        <span>
-                          {
-                            user.carnet
-                          }
-                        </span>
-                      </div>
-                    </td>
-
-                    <td>
-                      <span
-                        className={`user-role ${
-                          user.role ===
-                          "ADMIN"
-                            ? "administrator"
-                            : "normal"
-                        }`}
-                      >
-                        {user.role ===
-                          "ADMIN" && (
-                          <ShieldCheck
-                            size={13}
-                          />
-                        )}
-
-                        {formatRole(
-                          user.role
-                        )}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span className="user-status">
-                        <span></span>
-                        Activo
-                      </span>
-                    </td>
-
-                    <td>
-                      <div className="user-actions">
-                        <button
-                          className="user-edit-button"
-                          onClick={() =>
-                            editUser(
-                              user
-                            )
-                          }
-                          title="Editar usuario"
-                        >
-                          <Pencil
-                            size={16}
-                          />
-                        </button>
-
-                        <button
-                          className="user-delete-button"
-                          onClick={() =>
-                            deleteUser(
-                              user
-                            )
-                          }
-                          title="Eliminar usuario"
-                        >
-                          <Trash2
-                            size={16}
-                          />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-
-          {filteredUsers.length ===
-            0 && (
-            <div className="empty-users">
-              <div className="empty-users-icon">
-                <Users
-                  size={35}
-                />
-              </div>
-
-              <h3>
-                No encontramos usuarios
-              </h3>
-
-              <p>
-                Prueba cambiando el
-                nombre o el filtro.
-              </p>
-
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setRoleFilter(
-                    "Todos"
-                  );
-                }}
-              >
-                Limpiar filtros
-              </button>
-            </div>
-          )}
-        </div>
-
-        {filteredUsers.length >
-          0 && (
-          <div className="users-panel-footer">
-            <span>
-              Mostrando{" "}
-              {
-                filteredUsers.length
-              }{" "}
-              de {users.length}{" "}
-              usuarios
-            </span>
-
-            <div className="users-footer-info">
-              <span>
-                <i className="users-green-dot"></i>
-                {users.length} activos
-              </span>
-
-              <span>
-                <ShieldCheck
-                  size={13}
-                />
-                {adminCount}{" "}
-                administradores
-              </span>
-            </div>
+        {filteredUsers.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: 45,
+              color: "#64748b",
+            }}
+          >
+            <Users size={40} style={{ margin: "auto" }} />
+            <h3>No se encontraron usuarios</h3>
           </div>
         )}
-      </section>
+      </div>
 
       {showModal && (
         <div
-          className="user-modal-overlay"
-          onMouseDown={(event) => {
-            if (
-              event.currentTarget ===
-              event.target
-            ) {
-              setShowModal(
-                false
-              );
-            }
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1000,
+            padding: 20,
           }}
         >
-          <div className="user-modal">
-            <div className="user-modal-header">
-              <div>
-                <span>
-                  NUEVO USUARIO
-                </span>
-
-                <h2>
-                  Registrar usuario
-                </h2>
-
-                <p>
-                  Crea una nueva cuenta
-                  para acceder al sistema.
-                </p>
-              </div>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              background: "white",
+              padding: 30,
+              borderRadius: 20,
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h2>
+                {editingId
+                  ? "Editar usuario"
+                  : "Agregar usuario"}
+              </h2>
 
               <button
-                onClick={() =>
-                  setShowModal(
-                    false
-                  )
-                }
+                onClick={resetForm}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
               >
-                <X size={19} />
+                <X size={23} />
               </button>
             </div>
 
-            <form
-              className="new-user-form"
-              onSubmit={
-                handleCreateUser
-              }
-            >
-              <div className="new-user-form-group">
-                <label>
-                  Nombre completo
-                </label>
+            <form onSubmit={handleSubmit}>
+              <label>Nombre completo</label>
 
-                <div className="new-user-input">
-                  <UserRound
-                    size={18}
-                  />
+              <input
+                style={inputStyle}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Nombre y apellido"
+                required
+              />
 
-                  <input
-                    type="text"
-                    placeholder="Ej: Juan Pérez"
-                    value={newName}
-                    onChange={(e) =>
-                      setNewName(
-                        e.target
-                          .value
-                      )
-                    }
-                  />
-                </div>
-              </div>
+              <label>Carnet de identidad</label>
 
-              <div className="new-user-form-group">
-                <label>
-                  Carnet de identidad
-                </label>
+              <input
+                style={inputStyle}
+                value={newCarnet}
+                readOnly={Boolean(editingId)}
+                onChange={(e) => setNewCarnet(e.target.value)}
+                placeholder="Ejemplo: 12345678"
+                required
+              />
 
-                <div className="new-user-input">
-                  <IdCard
-                    size={18}
-                  />
+              <label>
+                <KeyRound size={15} style={{ display: "inline" }} />{" "}
+                {editingId
+                  ? "Nueva contraseña (opcional)"
+                  : "Contraseña"}
+              </label>
 
-                  <input
-                    type="text"
-                    placeholder="Ej: 12345678"
-                    value={
-                      newCarnet
-                    }
-                    onChange={(e) =>
-                      setNewCarnet(
-                        e.target
-                          .value
-                      )
-                    }
-                  />
-                </div>
-              </div>
+              <input
+                type="password"
+                style={inputStyle}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Mínimo 8 caracteres"
+                required={!editingId}
+                minLength={8}
+                autoComplete="new-password"
+              />
 
-              <div className="new-user-form-group">
-                <label>
-                  Contraseña
-                </label>
+              <label>Rol del usuario</label>
 
-                <div className="new-user-input">
-                  <KeyRound
-                    size={18}
-                  />
+              <select
+                style={inputStyle}
+                value={newRole}
+                onChange={(e) =>
+                  setNewRole(e.target.value as UserRole)
+                }
+              >
+                <option value="ESTUDIANTE">
+                  Estudiante
+                </option>
 
-                  <input
-                    type="password"
-                    placeholder="Crear contraseña"
-                    value={
-                      newPassword
-                    }
-                    onChange={(e) =>
-                      setNewPassword(
-                        e.target
-                          .value
-                      )
-                    }
-                  />
-                </div>
-              </div>
+                <option value="PROFESOR">
+                  Profesor
+                </option>
 
-              <div className="new-user-form-group">
-                <label>Rol</label>
+                <option value="ADMIN">
+                  Administrador
+                </option>
+              </select>
 
-                <select
-                  className="new-user-role-select"
-                  value={newRole}
-                  onChange={(e) =>
-                    setNewRole(
-                      e.target
-                        .value as
-                        | "ADMIN"
-                        | "PROFESOR"
-                        | "ESTUDIANTE"
-                    )
-                  }
-                >
-                  <option value="ESTUDIANTE">
-                    Estudiante
-                  </option>
-
-                  <option value="PROFESOR">
-                    Profesor
-                  </option>
-
-                  <option value="ADMIN">
-                    Administrador
-                  </option>
-                </select>
-              </div>
-
-              <div className="role-information">
-                <ShieldCheck
-                  size={18}
-                />
-
-                <div>
-                  <strong>
-                    Permisos
-                  </strong>
-
-                  <p>
-                    {newRole ===
-                    "ADMIN"
-                      ? "Acceso completo al sistema."
-                      : newRole ===
-                        "PROFESOR"
-                      ? "Puede consultar objetos y solicitar préstamos."
-                      : "Puede consultar inventario y sus propios préstamos."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="new-user-form-actions">
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginTop: 15,
+                }}
+              >
                 <button
                   type="button"
-                  className="cancel-user-button"
-                  onClick={() =>
-                    setShowModal(
-                      false
-                    )
-                  }
+                  onClick={resetForm}
+                  style={buttonStyle("#64748b")}
                 >
                   Cancelar
                 </button>
 
                 <button
                   type="submit"
-                  className="save-user-button"
+                  disabled={saving}
+                  style={{
+                    ...buttonStyle("#1769df"),
+                    flex: 1,
+                    justifyContent: "center",
+                  }}
                 >
                   <Save size={17} />
-                  Guardar usuario
+                  {saving
+                    ? "Guardando..."
+                    : editingId
+                    ? "Guardar cambios"
+                    : "Crear usuario"}
                 </button>
               </div>
             </form>
@@ -843,6 +654,59 @@ function UsersPage() {
       )}
     </div>
   );
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+}: {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        background: "white",
+        borderRadius: 15,
+        padding: 22,
+        display: "flex",
+        alignItems: "center",
+        gap: 15,
+        boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+      }}
+    >
+      {icon}
+
+      <div>
+        <div style={{ color: "#64748b", fontSize: 14 }}>
+          {title}
+        </div>
+
+        <strong style={{ fontSize: 27 }}>
+          {value}
+        </strong>
+      </div>
+    </div>
+  );
+}
+
+function buttonStyle(
+  color: string
+): React.CSSProperties {
+  return {
+    background: color,
+    color: "white",
+    padding: "10px 14px",
+    border: "none",
+    borderRadius: 9,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 7,
+    fontWeight: 600,
+    cursor: "pointer",
+  };
 }
 
 export default UsersPage;
