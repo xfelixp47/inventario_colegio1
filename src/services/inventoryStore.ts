@@ -20,6 +20,7 @@ export type LoanRecord = {
   item: string;
   code: string;
   quantity?: number;
+  reason?: string;
   loanDate: string;
   returnDate: string;
   status:
@@ -35,7 +36,7 @@ export type LoanRecord = {
 const ITEMS_KEY = "donbosco_inventory_v2";
 const LOANS_KEY = "donbosco_loans_v2";
 
-const initialItems: InventoryItem[] = [
+export const initialItems: InventoryItem[] = [
   {
     id: 1,
     name: "Proyector Epson X49",
@@ -104,189 +105,140 @@ const initialItems: InventoryItem[] = [
   },
 ];
 
-function updateStatus(item: InventoryItem): InventoryItem {
-  const available = Math.max(
-    0,
-    Math.min(item.quantity, item.available)
-  );
-
+function refreshStatus(item: InventoryItem): InventoryItem {
   return {
     ...item,
-    available,
     status:
-      available === 0
+      item.available === 0
         ? "Prestado"
-        : available <=
+        : item.available <=
           Math.max(1, Math.floor(item.quantity * 0.2))
         ? "Stock bajo"
         : "Disponible",
   };
 }
 
-function notify() {
-  window.dispatchEvent(new Event("donbosco:changed"));
-}
-
-function loanQuantity(loan: LoanRecord): number {
-  return loan.quantity ?? 1;
-}
-
 export const inventoryStore = {
   getItems(): InventoryItem[] {
-    const saved =
-      storageService.get<InventoryItem[]>(ITEMS_KEY);
-
-    return (saved ?? initialItems).map(updateStatus);
+    return (
+      storageService.get<InventoryItem[]>(ITEMS_KEY) ??
+      initialItems
+    );
   },
 
-  setItems(items: InventoryItem[]): void {
+  setItems(items: InventoryItem[]) {
     storageService.set(
       ITEMS_KEY,
-      items.map(updateStatus)
+      items.map(refreshStatus)
     );
 
-    notify();
+    window.dispatchEvent(new Event("donbosco:changed"));
   },
 
   getLoans(): LoanRecord[] {
     return storageService.get<LoanRecord[]>(LOANS_KEY) ?? [];
   },
 
-  setLoans(loans: LoanRecord[]): void {
+  setLoans(loans: LoanRecord[]) {
     storageService.set(LOANS_KEY, loans);
-    notify();
+
+    window.dispatchEvent(new Event("donbosco:changed"));
   },
 
-  // ENVIAR SOLICITUD
-
-  requestLoan(loan: LoanRecord): void {
-    const quantity = loanQuantity(loan);
-
-    if (!Number.isInteger(quantity) || quantity < 1) {
-      throw new Error("La cantidad solicitada no es válida.");
-    }
-
+  requestLoan(loan: LoanRecord) {
     const item = this.getItems().find(
       (i) => i.code === loan.code
     );
 
-    if (!item) {
-      throw new Error("No se encontró el objeto.");
+    const quantity = loan.quantity ?? 1;
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error("La cantidad debe ser mayor que cero.");
     }
-
-    if (quantity > item.available) {
-      throw new Error(
-        `Solo hay ${item.available} unidades disponibles.`
-      );
-    }
-
-    this.setLoans([
-      ...this.getLoans(),
-      {
-        ...loan,
-        quantity,
-        status: "Pendiente",
-      },
-    ]);
-  },
-
-  // APROBAR SOLICITUD
-
-  approveLoan(id: number): void {
-    const loans = this.getLoans();
-
-    const loan = loans.find(
-      (item) => item.id === id
-    );
-
-    if (!loan || loan.status !== "Pendiente") return;
-
-    const quantity = loanQuantity(loan);
-
-    const items = this.getItems();
-
-    const item = items.find(
-      (i) => i.code === loan.code
-    );
 
     if (!item || item.available < quantity) {
       throw new Error(
-        "No hay suficientes unidades para aprobar este préstamo."
+        "No hay suficientes unidades disponibles."
+      );
+    }
+
+    if (!loan.reason?.trim() || loan.reason.trim().length < 10) {
+      throw new Error(
+        "Debes explicar el motivo de la solicitud."
+      );
+    }
+
+    this.setLoans([...this.getLoans(), loan]);
+  },
+
+  approveLoan(id: number) {
+    const loan = this.getLoans().find((l) => l.id === id);
+
+    if (!loan || loan.status !== "Pendiente") return;
+
+    const quantity = loan.quantity ?? 1;
+
+    const items = this.getItems();
+
+    const item = items.find((i) => i.code === loan.code);
+
+    if (!item || item.available < quantity) {
+      throw new Error(
+        "No hay suficientes unidades para aprobar la solicitud."
       );
     }
 
     this.setItems(
       items.map((i) =>
         i.code === loan.code
+          ? { ...i, available: i.available - quantity }
+          : i
+      )
+    );
+
+    this.setLoans(
+      this.getLoans().map((l) =>
+        l.id === id ? { ...l, status: "Activo" } : l
+      )
+    );
+  },
+
+  rejectLoan(id: number) {
+    this.setLoans(
+      this.getLoans().map((l) =>
+        l.id === id && l.status === "Pendiente"
+          ? { ...l, status: "Rechazado" }
+          : l
+      )
+    );
+  },
+
+  returnLoan(id: number) {
+    const loan = this.getLoans().find((l) => l.id === id);
+
+    if (!loan || !["Activo", "Vencido"].includes(loan.status)) {
+      return;
+    }
+
+    const quantity = loan.quantity ?? 1;
+
+    this.setItems(
+      this.getItems().map((i) =>
+        i.code === loan.code
           ? {
               ...i,
-              available: i.available - quantity,
+              available: Math.min(
+                i.quantity,
+                i.available + quantity
+              ),
             }
           : i
       )
     );
 
     this.setLoans(
-      loans.map((l) =>
-        l.id === id
-          ? { ...l, status: "Activo" }
-          : l
-      )
-    );
-  },
-
-  // RECHAZAR SOLICITUD
-
-  rejectLoan(id: number): void {
-    this.setLoans(
-      this.getLoans().map((loan) =>
-        loan.id === id && loan.status === "Pendiente"
-          ? {
-              ...loan,
-              status: "Rechazado",
-            }
-          : loan
-      )
-    );
-  },
-
-  // REGISTRAR DEVOLUCIÓN
-
-  returnLoan(id: number): void {
-    const loans = this.getLoans();
-
-    const loan = loans.find(
-      (l) => l.id === id
-    );
-
-    if (
-      !loan ||
-      !["Activo", "Vencido"].includes(loan.status)
-    ) {
-      return;
-    }
-
-    const quantity = loanQuantity(loan);
-
-    this.setItems(
-      this.getItems().map((item) =>
-        item.code === loan.code
-          ? {
-              ...item,
-              available: Math.min(
-                item.quantity,
-                item.available + quantity
-              ),
-            }
-          : item
-      )
-    );
-
-    this.setLoans(
-      loans.map((l) =>
-        l.id === id
-          ? { ...l, status: "Devuelto" }
-          : l
+      this.getLoans().map((l) =>
+        l.id === id ? { ...l, status: "Devuelto" } : l
       )
     );
   },

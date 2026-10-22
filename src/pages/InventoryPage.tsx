@@ -1,14 +1,26 @@
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { useNavigate } from "react-router-dom";
 
 import {
   ArrowLeft,
+  Package,
   Plus,
   Search,
-  Package,
-  Pencil,
   Trash2,
+  Pencil,
+  Boxes,
+  CheckCircle2,
+  Clock3,
+  AlertTriangle,
+  Filter,
+  ChevronDown,
+  MoreHorizontal,
   Handshake,
 } from "lucide-react";
 
@@ -32,13 +44,23 @@ function InventoryPage() {
     user?.role === "PROFESOR" ||
     user?.role === "ESTUDIANTE";
 
+  // OBJETOS DEL INVENTARIO
+
   const [objects, setObjects] = useState<InventoryItem[]>(
     () => inventoryStore.getItems()
   );
 
+  // BUSCADOR Y FILTROS
+
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("Todas");
-  const [status, setStatus] = useState("Todos");
+
+  const [categoryFilter, setCategoryFilter] =
+    useState("Todas");
+
+  const [statusFilter, setStatusFilter] =
+    useState("Todos");
+
+  // ACTUALIZAR INVENTARIO CUANDO HAY CAMBIOS
 
   useEffect(() => {
     const reload = () => {
@@ -46,33 +68,74 @@ function InventoryPage() {
     };
 
     window.addEventListener("storage", reload);
-    window.addEventListener("donbosco:changed", reload);
+
+    window.addEventListener(
+      "donbosco:changed",
+      reload
+    );
 
     return () => {
       window.removeEventListener("storage", reload);
-      window.removeEventListener("donbosco:changed", reload);
+
+      window.removeEventListener(
+        "donbosco:changed",
+        reload
+      );
     };
   }, []);
 
+  // CATEGORÍAS
+
   const categories = [
     "Todas",
-    ...Array.from(new Set(objects.map((item) => item.category))),
+    ...Array.from(
+      new Set(
+        objects.map((object) => object.category)
+      )
+    ),
   ];
 
+  // CALCULAR ESTADO ACTUAL DEL OBJETO
+
+  const getObjectStatus = (
+    object: InventoryItem
+  ): InventoryItem["status"] => {
+    if (object.available <= 0) {
+      return "Prestado";
+    }
+
+    const minimum = Math.max(
+      1,
+      Math.floor(object.quantity * 0.2)
+    );
+
+    if (object.available <= minimum) {
+      return "Stock bajo";
+    }
+
+    return "Disponible";
+  };
+
+  // OBJETOS FILTRADOS
+
   const filteredObjects = useMemo(() => {
-    return objects.filter((item) => {
-      const q = search.toLowerCase();
+    return objects.filter((object) => {
+      const text = search.toLowerCase();
 
       const matchesSearch =
-        item.name.toLowerCase().includes(q) ||
-        item.code.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q);
+        object.name.toLowerCase().includes(text) ||
+        object.code.toLowerCase().includes(text) ||
+        object.category.toLowerCase().includes(text);
 
       const matchesCategory =
-        category === "Todas" || item.category === category;
+        categoryFilter === "Todas" ||
+        object.category === categoryFilter;
+
+      const currentStatus = getObjectStatus(object);
 
       const matchesStatus =
-        status === "Todos" || item.status === status;
+        statusFilter === "Todos" ||
+        currentStatus === statusFilter;
 
       return (
         matchesSearch &&
@@ -80,108 +143,157 @@ function InventoryPage() {
         matchesStatus
       );
     });
-  }, [objects, search, category, status]);
+  }, [objects, search, categoryFilter, statusFilter]);
 
-  const total = objects.reduce(
-    (sum, item) => sum + item.quantity,
+  // ESTADÍSTICAS
+
+  const totalObjects = objects.reduce(
+    (total, object) => total + object.quantity,
     0
   );
 
-  const available = objects.reduce(
-    (sum, item) => sum + item.available,
+  const totalAvailable = objects.reduce(
+    (total, object) => total + object.available,
     0
   );
 
-  const borrowed = total - available;
+  const totalBorrowed =
+    totalObjects - totalAvailable;
 
-  const deleteObject = (item: InventoryItem) => {
+  const lowStock = objects.filter(
+    (object) => getObjectStatus(object) === "Stock bajo"
+  ).length;
+
+  // ELIMINAR OBJETO
+
+  const deleteObject = (object: InventoryItem) => {
     if (!isAdmin) return;
 
-    if (item.available < item.quantity) {
+    const borrowed =
+      object.quantity - object.available;
+
+    if (borrowed > 0) {
       alert(
-        "No puedes eliminar este objeto porque tiene préstamos activos."
+        "No puedes eliminar este objeto porque tiene unidades prestadas."
       );
       return;
     }
 
-    if (!confirm(`¿Eliminar "${item.name}"?`)) return;
+    const confirmDelete = window.confirm(
+      `¿Seguro que quieres eliminar "${object.name}"?`
+    );
 
-    const updated = objects.filter((i) => i.id !== item.id);
+    if (!confirmDelete) return;
+
+    const updated = objects.filter(
+      (item) => item.id !== object.id
+    );
 
     inventoryStore.setItems(updated);
-    setObjects(updated);
+
+    setObjects(inventoryStore.getItems());
+
+    alert("Objeto eliminado correctamente.");
   };
 
-  const editObject = (item: InventoryItem) => {
+  // EDITAR OBJETO
+
+  const editObject = (object: InventoryItem) => {
     if (!isAdmin) return;
 
-    const name = prompt("Nombre del objeto:", item.name)?.trim();
-    if (!name) return;
+    const newName = window.prompt(
+      "Nombre del objeto:",
+      object.name
+    );
 
-    const quantityText = prompt(
-      "Cantidad total:",
-      String(item.quantity)
+    if (!newName?.trim()) return;
+
+    const quantityText = window.prompt(
+      "Cantidad total de unidades:",
+      String(object.quantity)
     );
 
     if (quantityText === null) return;
 
-    const quantity = Number(quantityText);
-    const borrowedUnits = item.quantity - item.available;
+    const newQuantity = Number(quantityText);
+
+    const borrowed =
+      object.quantity - object.available;
 
     if (
-      !Number.isInteger(quantity) ||
-      quantity < borrowedUnits
+      !Number.isInteger(newQuantity) ||
+      newQuantity < borrowed ||
+      newQuantity < 1
     ) {
       alert(
-        "La cantidad no puede ser menor que las unidades prestadas."
+        "La cantidad no es válida o es menor que las unidades prestadas."
       );
       return;
     }
 
     const newCategory =
-      prompt("Categoría:", item.category)?.trim() ||
-      item.category;
+      window.prompt(
+        "Categoría:",
+        object.category
+      )?.trim() || object.category;
 
-    const location =
-      prompt("Ubicación:", item.location)?.trim() ||
-      item.location;
+    const newLocation =
+      window.prompt(
+        "Ubicación:",
+        object.location
+      )?.trim() || object.location;
 
-    const updated = objects.map((i) =>
-      i.id === item.id
+    const updated = objects.map((item) =>
+      item.id === object.id
         ? {
-            ...i,
-            name,
-            quantity,
-            available: quantity - borrowedUnits,
+            ...item,
+            name: newName.trim(),
+            quantity: newQuantity,
+            available: newQuantity - borrowed,
             category: newCategory,
-            location,
+            location: newLocation,
           }
-        : i
+        : item
     );
 
     inventoryStore.setItems(updated);
+
     setObjects(inventoryStore.getItems());
+
+    alert("Objeto actualizado correctamente.");
   };
 
-  const requestObject = (item: InventoryItem) => {
-    if (!canRequest || item.available < 1) return;
+  // SOLICITAR OBJETO
+
+  const requestObject = (object: InventoryItem) => {
+    if (!canRequest) return;
+
+    if (object.available <= 0) {
+      alert(
+        "Este objeto no tiene unidades disponibles."
+      );
+      return;
+    }
 
     navigate("/prestamos/nuevo", {
       state: {
-        object: item.name,
+        object: object.name,
       },
     });
   };
 
-  const inputStyle: React.CSSProperties = {
-    padding: 12,
-    border: "1px solid #dbe2ea",
-    borderRadius: 10,
-    background: "white",
+  // LIMPIAR FILTROS
+
+  const clearFilters = () => {
+    setSearch("");
+    setCategoryFilter("Todas");
+    setStatusFilter("Todos");
   };
 
   return (
     <div className="inventory-page">
+      {/* BOTÓN VOLVER */}
+
       <button
         className="inventory-back-button"
         onClick={() => navigate("/")}
@@ -190,294 +302,402 @@ function InventoryPage() {
         Volver al inicio
       </button>
 
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 15,
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: 30,
-        }}
-      >
+      {/* ENCABEZADO */}
+
+      <header className="inventory-header">
         <div>
+          <span className="inventory-eyebrow">
+            {isAdmin
+              ? "GESTIÓN DE RECURSOS"
+              : "CONSULTA DE RECURSOS"}
+          </span>
+
           <h1>Inventario</h1>
+
           <p>
-            Gestión de objetos del Colegio Don Bosco.
+            {isAdmin
+              ? "Administra y controla todos los objetos, materiales y recursos del Colegio Don Bosco."
+              : "Consulta los objetos disponibles y solicita los materiales que necesites."}
           </p>
         </div>
 
         {isAdmin && (
           <button
-            onClick={() => navigate("/inventario/nuevo")}
-            style={buttonStyle("#1769df")}
+            className="add-object-button"
+            onClick={() =>
+              navigate("/inventario/nuevo")
+            }
           >
-            <Plus size={18} />
-            Agregar objeto
+            <Plus size={19} />
+            Registrar objeto
           </button>
         )}
       </header>
 
-      <section
-        style={{
-          display: "flex",
-          gap: 15,
-          flexWrap: "wrap",
-          marginBottom: 25,
-        }}
-      >
-        <StatCard title="Total de objetos" value={total} />
-        <StatCard title="Disponibles" value={available} />
-        <StatCard title="Prestados" value={borrowed} />
-        <StatCard
-          title="Tipos de objetos"
-          value={objects.length}
-        />
+      {/* ESTADÍSTICAS */}
+
+      <section className="inventory-stats">
+        {/* TOTAL */}
+
+        <div className="inventory-stat-card">
+          <div className="inventory-stat-icon blue">
+            <Boxes size={24} />
+          </div>
+
+          <div>
+            <span>Total de objetos</span>
+
+            <strong>{totalObjects}</strong>
+
+            <small>Unidades registradas</small>
+          </div>
+        </div>
+
+        {/* DISPONIBLES */}
+
+        <div className="inventory-stat-card">
+          <div className="inventory-stat-icon green">
+            <CheckCircle2 size={24} />
+          </div>
+
+          <div>
+            <span>Disponibles</span>
+
+            <strong>{totalAvailable}</strong>
+
+            <small>Listos para utilizar</small>
+          </div>
+        </div>
+
+        {/* PRESTADOS */}
+
+        <div className="inventory-stat-card">
+          <div className="inventory-stat-icon orange">
+            <Clock3 size={24} />
+          </div>
+
+          <div>
+            <span>Prestados</span>
+
+            <strong>{totalBorrowed}</strong>
+
+            <small>Fuera del almacén</small>
+          </div>
+        </div>
+
+        {/* STOCK BAJO */}
+
+        <div className="inventory-stat-card">
+          <div className="inventory-stat-icon red">
+            <AlertTriangle size={24} />
+          </div>
+
+          <div>
+            <span>Stock bajo</span>
+
+            <strong>{lowStock}</strong>
+
+            <small>Requieren atención</small>
+          </div>
+        </div>
       </section>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          marginBottom: 25,
-        }}
-      >
-        <div style={{ position: "relative", flex: 1 }}>
-          <Search
-            size={18}
-            style={{
-              position: "absolute",
-              top: 13,
-              left: 12,
-              color: "#64748b",
-            }}
-          />
+      {/* PANEL DEL INVENTARIO */}
 
-          <input
-            placeholder="Buscar objetos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              ...inputStyle,
-              width: "100%",
-              boxSizing: "border-box",
-              paddingLeft: 40,
-            }}
-          />
-        </div>
-
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          style={inputStyle}
-        >
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          style={inputStyle}
-        >
-          {[
-            "Todos",
-            "Disponible",
-            "Prestado",
-            "Stock bajo",
-          ].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fill, minmax(260px, 1fr))",
-          gap: 20,
-        }}
-      >
-        {filteredObjects.map((item) => (
-          <div
-            key={item.id}
-            style={{
-              background: "white",
-              borderRadius: 18,
-              padding: 24,
-              boxShadow: "0 5px 20px rgba(0,0,0,0.06)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 42,
-                marginBottom: 14,
-              }}
-            >
-              {item.emoji}
-            </div>
-
-            <h3 style={{ marginBottom: 7 }}>
-              {item.name}
-            </h3>
-
-            <p
-              style={{
-                color: "#64748b",
-                fontSize: 14,
-              }}
-            >
-              {item.code} · {item.category}
-            </p>
-
-            <p style={{ fontSize: 14 }}>
-              Ubicación: {item.location}
-            </p>
+      <section className="inventory-panel">
+        <div className="inventory-panel-header">
+          <div>
+            <h2>Objetos registrados</h2>
 
             <p>
-              <strong>{item.available}</strong> de{" "}
-              <strong>{item.quantity}</strong> disponibles
+              {filteredObjects.length} objetos encontrados
             </p>
+          </div>
 
-            <span
-              style={{
-                background:
-                  item.status === "Disponible"
-                    ? "#dcfce7"
-                    : item.status === "Stock bajo"
-                    ? "#fef3c7"
-                    : "#fee2e2",
-                padding: "6px 11px",
-                borderRadius: 20,
-                fontSize: 13,
-                fontWeight: 600,
-              }}
+          {isAdmin && (
+            <button
+              className="options-button"
+              onClick={clearFilters}
+              title="Limpiar filtros"
             >
-              {item.status}
+              <MoreHorizontal size={20} />
+            </button>
+          )}
+        </div>
+
+        {/* BÚSQUEDA Y FILTROS */}
+
+        <div className="inventory-toolbar">
+          <div className="inventory-search">
+            <Search size={19} />
+
+            <input
+              type="text"
+              placeholder="Buscar por nombre, código o categoría..."
+              value={search}
+              onChange={(e) =>
+                setSearch(e.target.value)
+              }
+            />
+          </div>
+
+          {/* FILTRAR POR CATEGORÍA */}
+
+          <div className="filter-select">
+            <Filter size={17} />
+
+            <select
+              value={categoryFilter}
+              onChange={(e) =>
+                setCategoryFilter(e.target.value)
+              }
+            >
+              {categories.map((category) => (
+                <option
+                  key={category}
+                  value={category}
+                >
+                  {category === "Todas"
+                    ? "Todas las categorías"
+                    : category}
+                </option>
+              ))}
+            </select>
+
+            <ChevronDown size={16} />
+          </div>
+
+          {/* FILTRAR POR ESTADO */}
+
+          <div className="filter-select">
+            <select
+              value={statusFilter}
+              onChange={(e) =>
+                setStatusFilter(e.target.value)
+              }
+            >
+              <option value="Todos">
+                Todos los estados
+              </option>
+
+              <option value="Disponible">
+                Disponible
+              </option>
+
+              <option value="Prestado">
+                Prestado
+              </option>
+
+              <option value="Stock bajo">
+                Stock bajo
+              </option>
+            </select>
+
+            <ChevronDown size={16} />
+          </div>
+        </div>
+
+        {/* TABLA */}
+
+        <div className="inventory-table-wrapper">
+          <table className="inventory-table">
+            <thead>
+              <tr>
+                <th>OBJETO</th>
+                <th>CATEGORÍA</th>
+                <th>UBICACIÓN</th>
+                <th>EXISTENCIAS</th>
+                <th>ESTADO</th>
+
+                <th>
+                  {isAdmin
+                    ? "ACCIONES"
+                    : canRequest
+                    ? "SOLICITAR"
+                    : "ACCESO"}
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredObjects.map((object) => {
+                const status = getObjectStatus(object);
+
+                const borrowed =
+                  object.quantity - object.available;
+
+                return (
+                  <tr key={object.id}>
+                    {/* OBJETO */}
+
+                    <td>
+                      <div className="inventory-object">
+                        <div className="inventory-object-image">
+                          {object.emoji}
+                        </div>
+
+                        <div>
+                          <strong>{object.name}</strong>
+
+                          <span>{object.code}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* CATEGORÍA */}
+
+                    <td>
+                      <span className="category-badge">
+                        {object.category}
+                      </span>
+                    </td>
+
+                    {/* UBICACIÓN */}
+
+                    <td>
+                      <span className="location-text">
+                        {object.location}
+                      </span>
+                    </td>
+
+                    {/* EXISTENCIAS */}
+
+                    <td>
+                      <div className="stock-info">
+                        <strong>{object.available}</strong>
+
+                        <span>
+                          / {object.quantity}
+                        </span>
+                      </div>
+
+                      {borrowed > 0 && (
+                        <small
+                          style={{
+                            color: "#d97706",
+                            fontWeight: 600,
+                            display: "block",
+                            marginTop: 5,
+                          }}
+                        >
+                          {borrowed} prestado(s)
+                        </small>
+                      )}
+                    </td>
+
+                    {/* ESTADO */}
+
+                    <td>
+                      <span
+                        className={`inventory-status ${
+                          status === "Disponible"
+                            ? "available"
+                            : status === "Prestado"
+                            ? "borrowed"
+                            : "low"
+                        }`}
+                      >
+                        <span className="status-dot"></span>
+                        {status}
+                      </span>
+                    </td>
+
+                    {/* ACCIONES */}
+
+                    <td>
+                      {isAdmin && (
+                        <div className="inventory-actions">
+                          <button
+                            className="edit-button"
+                            onClick={() =>
+                              editObject(object)
+                            }
+                            title="Editar objeto"
+                          >
+                            <Pencil size={16} />
+                          </button>
+
+                          <button
+                            className="delete-button"
+                            onClick={() =>
+                              deleteObject(object)
+                            }
+                            title="Eliminar objeto"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      {canRequest && (
+                        <button
+                          className="edit-button"
+                          onClick={() =>
+                            requestObject(object)
+                          }
+                          disabled={object.available <= 0}
+                          title={
+                            object.available > 0
+                              ? "Solicitar objeto"
+                              : "Sin existencias"
+                          }
+                        >
+                          <Handshake size={16} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* SIN RESULTADOS */}
+
+          {filteredObjects.length === 0 && (
+            <div className="empty-inventory">
+              <div className="empty-inventory-icon">
+                <Package size={34} />
+              </div>
+
+              <h3>No encontramos objetos</h3>
+
+              <p>
+                Prueba con otro nombre o cambia los filtros.
+              </p>
+
+              <button onClick={clearFilters}>
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* PIE DEL PANEL */}
+
+        {filteredObjects.length > 0 && (
+          <div className="inventory-panel-footer">
+            <span>
+              Mostrando {filteredObjects.length} de{" "}
+              {objects.length} registros
             </span>
 
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                marginTop: 20,
-                flexWrap: "wrap",
-              }}
-            >
-              {isAdmin && (
-                <>
-                  <button
-                    style={buttonStyle("#2563eb")}
-                    onClick={() => editObject(item)}
-                  >
-                    <Pencil size={16} />
-                    Editar
-                  </button>
+            <div className="inventory-footer-summary">
+              <span>
+                <i className="summary-dot green"></i>
+                {totalAvailable} disponibles
+              </span>
 
-                  <button
-                    style={buttonStyle("#dc2626")}
-                    onClick={() => deleteObject(item)}
-                  >
-                    <Trash2 size={16} />
-                    Eliminar
-                  </button>
-                </>
-              )}
-
-              {canRequest && item.available > 0 && (
-                <button
-                  style={buttonStyle("#16a34a")}
-                  onClick={() => requestObject(item)}
-                >
-                  <Handshake size={16} />
-                  Solicitar
-                </button>
-              )}
+              <span>
+                <i className="summary-dot orange"></i>
+                {totalBorrowed} prestados
+              </span>
             </div>
           </div>
-        ))}
-      </div>
-
-      {filteredObjects.length === 0 && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: 50,
-            color: "#64748b",
-          }}
-        >
-          <Package
-            size={40}
-            style={{ margin: "auto" }}
-          />
-
-          <h3>No se encontraron objetos</h3>
-
-          <p>
-            Prueba cambiando la búsqueda o los filtros.
-          </p>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
-}
-
-function StatCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: number;
-}) {
-  return (
-    <div
-      style={{
-        flex: 1,
-        minWidth: 160,
-        background: "white",
-        borderRadius: 15,
-        padding: 22,
-        boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-      }}
-    >
-      <div
-        style={{
-          color: "#64748b",
-          fontSize: 14,
-        }}
-      >
-        {title}
-      </div>
-
-      <strong style={{ fontSize: 29 }}>
-        {value}
-      </strong>
-    </div>
-  );
-}
-
-function buttonStyle(
-  color: string
-): React.CSSProperties {
-  return {
-    background: color,
-    color: "white",
-    padding: "10px 14px",
-    border: "none",
-    borderRadius: 9,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 7,
-    fontWeight: 600,
-    cursor: "pointer",
-  };
 }
 
 export default InventoryPage;
