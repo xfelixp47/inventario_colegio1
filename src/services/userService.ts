@@ -14,9 +14,12 @@ function toHex(bytes: Uint8Array): string {
     .join("");
 }
 
-function fromHex(hex: string): Uint8Array {
-  const values = hex.match(/.{2}/g) ?? [];
-  return new Uint8Array(values.map((value) => parseInt(value, 16)));
+function fromHex(hex: string): Uint8Array<ArrayBuffer> {
+  const values = (hex.match(/.{2}/g) ?? []).map(
+    (part) => parseInt(part, 16)
+  );
+
+  return new Uint8Array(values);
 }
 
 async function hashPassword(
@@ -33,10 +36,10 @@ async function hashPassword(
     ["deriveBits"]
   );
 
-  const bits = await crypto.subtle.deriveBits(
+  const result = await crypto.subtle.deriveBits(
     {
       name: "PBKDF2",
-      salt: fromHex(salt) as BufferSource,
+      salt: fromHex(salt),
       iterations: 210000,
       hash: "SHA-256",
     },
@@ -44,22 +47,28 @@ async function hashPassword(
     256
   );
 
-  return toHex(new Uint8Array(bits));
+  return toHex(new Uint8Array(result));
 }
 
 export const userService = {
   getUsers(): CreatedUser[] {
     try {
       const data = localStorage.getItem(KEY);
-      return data ? (JSON.parse(data) as CreatedUser[]) : [];
+
+      return data
+        ? (JSON.parse(data) as CreatedUser[])
+        : [];
     } catch {
       return [];
     }
   },
 
-  saveUsers(users: CreatedUser[]) {
+  saveUsers(users: CreatedUser[]): void {
     localStorage.setItem(KEY, JSON.stringify(users));
-    window.dispatchEvent(new Event("donbosco:users-changed"));
+
+    window.dispatchEvent(
+      new Event("donbosco:users-changed")
+    );
   },
 
   async createUser(data: {
@@ -68,35 +77,49 @@ export const userService = {
     password: string;
     role: UserRole;
   }): Promise<CreatedUser> {
-    if (!data.name.trim() || !data.carnet.trim()) {
-      throw new Error("Completa el nombre y el carnet.");
+    const name = data.name.trim();
+    const carnet = data.carnet.trim();
+
+    if (!name || !carnet || !data.password) {
+      throw new Error("Completa todos los campos.");
     }
 
     if (data.password.length < 8) {
-      throw new Error("La contraseña debe tener al menos 8 caracteres.");
+      throw new Error(
+        "La contraseña debe tener al menos 8 caracteres."
+      );
     }
 
     if (
       this.getUsers().some(
-        (user) => user.carnet === data.carnet.trim()
+        (user) => user.carnet === carnet
       )
     ) {
-      throw new Error("Ya existe un usuario con ese carnet.");
+      throw new Error(
+        "Ya existe un usuario con ese carnet."
+      );
     }
 
-    const salt = toHex(crypto.getRandomValues(new Uint8Array(16)));
-    const passwordHash = await hashPassword(data.password, salt);
+    const salt = toHex(
+      crypto.getRandomValues(new Uint8Array(16))
+    );
+
+    const passwordHash = await hashPassword(
+      data.password,
+      salt
+    );
 
     const newUser: CreatedUser = {
       id: crypto.randomUUID(),
-      name: data.name.trim(),
-      carnet: data.carnet.trim(),
+      name,
+      carnet,
       role: data.role,
       passwordHash,
       salt,
     };
 
     this.saveUsers([...this.getUsers(), newUser]);
+
     return newUser;
   },
 
@@ -105,17 +128,17 @@ export const userService = {
     password: string
   ): Promise<User | null> {
     const user = this.getUsers().find(
-      (item) => item.carnet === carnet
+      (item) => item.carnet === carnet.trim()
     );
 
     if (!user) return null;
 
-    const candidateHash = await hashPassword(
+    const hash = await hashPassword(
       password,
       user.salt
     );
 
-    if (candidateHash !== user.passwordHash) {
+    if (hash !== user.passwordHash) {
       return null;
     }
 
@@ -127,7 +150,75 @@ export const userService = {
     };
   },
 
-  deleteUser(id: string) {
-    this.saveUsers(this.getUsers().filter((user) => user.id !== id));
+  updateUser(
+    id: string,
+    data: {
+      name: string;
+      role: UserRole;
+    }
+  ): void {
+    if (!data.name.trim()) {
+      throw new Error("El nombre no puede estar vacío.");
+    }
+
+    const users = this.getUsers();
+
+    if (!users.some((user) => user.id === id)) {
+      throw new Error("No se encontró el usuario.");
+    }
+
+    this.saveUsers(
+      users.map((user) =>
+        user.id === id
+          ? {
+              ...user,
+              name: data.name.trim(),
+              role: data.role,
+            }
+          : user
+      )
+    );
+  },
+
+  async changePassword(
+    id: string,
+    newPassword: string
+  ): Promise<void> {
+    if (newPassword.length < 8) {
+      throw new Error(
+        "La contraseña debe tener al menos 8 caracteres."
+      );
+    }
+
+    const users = this.getUsers();
+
+    if (!users.some((user) => user.id === id)) {
+      throw new Error("No se encontró el usuario.");
+    }
+
+    const salt = toHex(
+      crypto.getRandomValues(new Uint8Array(16))
+    );
+
+    const passwordHash = await hashPassword(
+      newPassword,
+      salt
+    );
+
+    this.saveUsers(
+      users.map((user) =>
+        user.id === id
+          ? { ...user, salt, passwordHash }
+          : user
+      )
+    );
+  },
+
+  deleteUser(id: string): void {
+    this.saveUsers(
+      this.getUsers().filter(
+        (user) => user.id !== id
+      )
+    );
   },
 };
